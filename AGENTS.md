@@ -7,34 +7,23 @@
 - **Environment:** MiniGrid-Dynamic-Obstacles-8x8-v0
 - **Language:** Python (MiniGrid/SB3 ecosystem)
 - **Student:** Sean Florez (sean.florez@colorado.edu)
+- **Collaborator:** andrewwer416 (GitHub)
 
 ## Status
 
 - [x] Project ideas submitted (3 ideas, 10 pts)
 - [x] Proposal written
 - [ ] Proposal submitted to Gradescope
-- [ ] DQN agent trained
-- [ ] MCTS agent implemented
-- [ ] Counterfactual rollout framework
-- [ ] LLM explanation pipeline
-- [ ] MCTS vs DQN comparison
+- [ ] Implementation (not started)
 - [ ] Final report (4-8 pages, IEEE format)
 
-## Architecture
+## Planned Architecture
 
 ```
 src/
-├── agents/
-│   ├── dqn_agent.py      # DQN training + inference (SB3)
-│   └── mcts_agent.py     # MCTS planner for MiniGrid
-├── analysis/
-│   ├── rollout.py         # MC rollout framework
-│   ├── tree_extractor.py  # Extract stats from MCTS tree
-│   └── stats.py           # Statistical comparison utilities
-└── explainer/
-    ├── pipeline.py        # Log -> LLM -> explanation
-    ├── prompts.py         # Prompt templates
-    └── chatbot.py         # Interactive interface (stretch)
+├── agents/          # DQN (SB3) + MCTS (from scratch)
+├── analysis/        # MC rollout framework, tree extraction, stats
+└── explainer/       # LLM explanation pipeline, chatbot (stretch)
 ```
 
 ## Key Decisions
@@ -43,20 +32,6 @@ src/
 - Stable-Baselines3 for DQN (simple, well-documented)
 - Claude API for LLM explanations
 - MCTS from scratch (adapted from HW3 concepts, ported to Python)
-
-## Commands
-
-```bash
-# Setup
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-
-# Train DQN
-python src/agents/dqn_agent.py
-
-# Run experiments
-python experiments/run_comparison.py
-```
 
 ## Professor's Feedback (Key Direction)
 

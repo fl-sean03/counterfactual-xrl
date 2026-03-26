@@ -12,26 +12,13 @@ Comparing the explainability of deep RL (DQN) and online planning (MCTS) on the 
 3. Use an LLM to translate rollout/tree statistics into natural language explanations
 4. Compare explanation quality between the two paradigms
 
-## Project Structure
+## Repository Contents
 
 ```
-├── proposal/           # Project proposal
-├── src/
-│   ├── agents/         # DQN and MCTS agent implementations
-│   ├── analysis/       # MC rollout framework, logging, statistics
-│   └── explainer/      # LLM explanation pipeline
-├── experiments/        # Experiment configs, scripts, results
-├── notebooks/          # Exploration and visualization notebooks
-├── report/             # Final report (IEEE format)
-└── requirements.txt    # Python dependencies
-```
-
-## Setup
-
-```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+├── Proposal/           # Project proposal and assignment spec
+├── CONTEXT.md          # Full project context and reference material
+├── AGENTS.md           # Project state tracking
+└── README.md
 ```
 
 ## Environment
