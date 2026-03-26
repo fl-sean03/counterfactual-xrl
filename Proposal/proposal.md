@@ -1,6 +1,6 @@
 # Counterfactual Explainability: Deep RL vs. Online Planning
 
-**Sean Florez** (sean.florez@colorado.edu)
+**Sean Florez** (sean.florez@colorado.edu) | **Andrew Wernersbach** (Andrew.Wernersbach@colorado.edu)
 
 ## Problem Statement
 
