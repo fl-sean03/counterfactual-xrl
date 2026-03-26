@@ -1,0 +1,56 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{parskip}
+\setlength{\parskip}{4pt}
+
+\title{\vspace{-2em}Counterfactual Explainability: Deep RL vs.\ Online Planning\vspace{-1em}}
+\author{Sean Florez (\texttt{sean.florez@colorado.edu})}
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\section*{Problem Statement}
+
+When a DQN agent picks an action, we know what it chose but not why.
+The Q-values live inside neural network weights, so the reasoning is opaque.
+Online planners like MCTS are different: the search tree stores simulated outcomes for every action considered, so the reasoning process is recorded and inspectable.
+This project investigates a natural question: is suboptimal online planning more explainable than suboptimal deep RL, specifically because the ``training data'' is in the tree?
+
+We will work in \textbf{MiniGrid-Dynamic-Obstacles-8x8}, a gridworld where an agent navigates around randomly moving obstacles to reach a goal.
+This is formulated as an \textbf{MDP}: state includes agent position/orientation, obstacle positions, and goal location; actions are \{turn left, turn right, move forward\}; reaching the goal gives reward scaled by speed, while hitting an obstacle gives $-1$ and ends the episode.
+The dynamic obstacles and partial observability ($7 \times 7$ egocentric view) create near-collision states where decisions genuinely need explaining.
+
+Our approach: train both a DQN agent and an MCTS planner on this environment, then build a system that generates counterfactual explanations for each agent's decisions using Monte Carlo rollouts and translates those into natural language with an LLM.
+
+\section*{Levels of Success}
+
+\begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}, itemsep=2pt]
+
+\item \textbf{Minimum Working Example.}
+Train a DQN on MiniGrid-Dynamic-Obstacles-8x8 (Stable-Baselines3).
+Build a counterfactual rollout framework: at each step of the trained policy, run 100+ MC rollouts per available action and log mean return, collision rate, success rate, and steps to termination.
+Produce statistical summaries showing why the chosen action was preferred over alternatives.
+
+\item \textbf{Main Approach.}
+Implement an MCTS agent for the same environment and extract equivalent counterfactual statistics from the search tree (visit counts, child values, simulated collision/success rates).
+Build an LLM pipeline that converts rollout logs (DQN) and tree logs (MCTS) into natural language explanations.
+Compare the two on explanation quality using fidelity and soundness metrics, following recent XRL evaluation work (Belouadah et al., 2025).
+This directly tests whether tree-based planning produces better explanations than post-hoc analysis of a learned policy.
+
+\item \textbf{Stretch Goal.}
+Interactive chatbot where a user steps through a trajectory and asks questions like ``why did you turn left?'' or ``what if you went forward?''
+Answers are grounded in rollout data and support follow-up questions for conversational exploration of agent behavior.
+
+\end{enumerate}
+
+\section*{Implementation Plan}
+
+\textbf{From scratch:} counterfactual MC rollout framework and logging, MCTS agent for MiniGrid (building on HW3 MCTS work), LLM explanation pipeline and prompt design, explanation evaluation metrics, chatbot interface (stretch).
+
+\textbf{Off-the-shelf:} MiniGrid environment (Farama Foundation), DQN training (Stable-Baselines3 or CleanRL), LLM API (Claude), standard Python stack (numpy, matplotlib, pandas).
+
+\end{document}
