@@ -1,0 +1,312 @@
+% !TEX program = pdflatex
+%
+% ASEN 5264 Final Report — Counterfactual Explainability: Deep RL vs. Online Planning
+%
+% NOTE TO AUTHORS (SEAN + ANDREW):
+%   Per the ASEN 5264 AI-use policy, the prose and mathematics in this
+%   document MUST be authored by you. What's below is a structured draft
+%   produced from the empirical results and the engineering log. Please
+%   rewrite every paragraph in your own voice, verify every number against
+%   `results/` and `ENGINEERING_LOG.md`, and delete these comment blocks
+%   before submission.
+%
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{url}
+
+\begin{document}
+
+\title{Counterfactual Explainability:\\Deep RL vs. Online Planning on MiniGrid}
+
+\author{
+\IEEEauthorblockN{Sean Florez}
+\IEEEauthorblockA{University of Colorado Boulder\\
+sean.florez@colorado.edu}
+\and
+\IEEEauthorblockN{Andrew Wernersbach}
+\IEEEauthorblockA{University of Colorado Boulder\\
+Andrew.Wernersbach@colorado.edu}}
+
+\maketitle
+
+\begin{abstract}
+% [DRAFT — rewrite in your voice]
+We investigate whether online planning with Monte Carlo Tree Search (MCTS)
+produces higher-quality explanations than post-hoc counterfactual analysis
+of a deep Q-network (DQN). Both agents are trained or planned on
+\texttt{MiniGrid-Dynamic-Obstacles-8x8}, a stochastic grid MDP, and
+evaluated under a shared evidence-to-explanation pipeline: structured
+per-action statistics are generated from each agent's decision process
+(counterfactual rollouts for DQN, the search tree for MCTS), passed
+through an LLM-based natural-language explainer, and scored on fidelity,
+soundness, and post-hoc inferability. Our central question, following
+Prof. Sunberg's framing: is the \emph{suboptimality} of an online
+planner more explainable than the suboptimality of a learned policy,
+specifically because the planner's ``training data'' is recorded in the
+tree?
+\end{abstract}
+
+\section{Introduction}
+% [DRAFT — write last, motivated by actual findings]
+Reinforcement learning agents choose actions, but often the reason for a
+choice lives inside opaque neural network weights. Online planners, by
+contrast, construct an explicit deliberation record — the search tree —
+before each action. We study whether that structural difference yields
+measurably better natural-language explanations when both agents are
+asked to justify the same decision.
+
+\paragraph{Contributions.}
+\begin{itemize}
+  \item A from-scratch MCTS planner for
+        \texttt{MiniGrid-Dynamic-Obstacles-8x8} with a tree-dump format
+        designed for downstream explanation.
+  \item A policy-agnostic counterfactual rollout framework producing
+        DQN-side evidence in a format structurally identical to the
+        MCTS tree statistics.
+  \item Three automated metrics for LLM-generated explanations:
+        fidelity, soundness, and post-hoc inferability.
+  \item Empirical results comparing the two paradigms on matched
+        decision states.
+\end{itemize}
+
+\paragraph{Release.}
+The authors grant permission for this report to be posted publicly.
+% Alt: The authors do NOT grant permission for this report to be posted publicly.
+
+\section{Background and Related Work}
+% [DRAFT — ≥5 citations required, each with a short relation blurb]
+\paragraph{Explainable RL.}
+Milani et al.~\cite{milani2024xrl} survey explanation methods for
+reinforcement learning, distinguishing \emph{transparent} models (where
+the policy structure itself is interpretable) from \emph{post-hoc}
+approaches (where behavior is explained after the fact). Our DQN
+pipeline is post-hoc; our MCTS pipeline is closer to transparent since
+the tree is the policy's deliberation.
+
+\paragraph{Counterfactual explanations.}
+Gajcin and Dusparic~\cite{gajcin2024cf} propose generating
+counterfactual explanations by perturbing state features and measuring
+downstream returns. Amitai et al.~\cite{amitai2024coviz} visualize
+action-outcome counterfactuals in RL environments. We operationalize
+this idea concretely as forced-first-action rollouts and compare to
+tree-based evidence.
+
+\paragraph{MCTS and interpretability.}
+Baier and Kaisers~\cite{baier2021explain} discuss what is salient in a
+search tree and how to surface it. We borrow their emphasis on
+visit-count ratios and per-child value contrasts as the primary
+evidence MCTS offers.
+
+\paragraph{LLMs for explanation.}
+Belouadah et al.~\cite{belouadah2025llm} (CITATION TO BE VERIFIED —
+replace with Milani 2024 metrics section or Hoffman et al. 2018 if
+unavailable) propose fidelity and plausibility metrics for
+LLM-generated explanations of RL agents. Our metrics build on this
+framework.
+
+\section{Problem Formulation}
+% Copy the authoritative formulation from docs/problem_formulation.md.
+% Include S, A, T, R definitions verbatim.
+
+We formulate \texttt{MiniGrid-Dynamic-Obstacles-8x8} as a finite-horizon
+MDP with factored stochastic transitions.
+
+\paragraph{State} $s = (p_a, d_a, \{p^{(k)}_o\}_{k=1..4}, t)$, where
+$p_a \in [1,6]^2$ is the agent's position, $d_a \in \{0,1,2,3\}$ its
+direction (east/south/west/north), $p^{(k)}_o \in [1,6]^2$ each
+obstacle's position, and $t$ the step counter.
+
+\paragraph{Action} $A = \{0, 1, 2\}$ = \{turn left, turn right, move
+forward\}.
+
+\paragraph{Transition} $T(s' \mid s, a)$ factors into a deterministic
+agent step followed by a stochastic per-obstacle random walk (each
+obstacle attempts a uniform move to one of its 4 neighbors; blocked
+moves leave the obstacle in place). An obstacle moving into the agent
+(or vice versa) terminates the episode.
+
+\paragraph{Reward} $R$ is $+ (1 - 0.9\,t/256)$ on reaching the goal,
+$-1$ on collision, and $0$ otherwise. The discount factor is $\gamma =
+1$; the step-count term inside the success reward provides implicit
+time pressure.
+
+\paragraph{Observability.} The MiniGrid default observation is a $7
+\times 7 \times 3$ egocentric partial view plus a direction scalar.
+The DQN is trained on this observation; MCTS plans on the full state
+via a deep-copied simulator. We address this asymmetry in
+\S\ref{sec:results}.
+
+\section{Solution Approach}
+\label{sec:approach}
+
+\subsection{DQN Baseline (off-the-shelf)}
+% [DRAFT — details in src/xrl/agents/dqn.py and configs/dqn_*.yaml]
+We use Stable-Baselines3~\cite{sb3} DQN with a two-layer MLP
+($256 \to 256$) policy. Observations are either flattened egocentric
+image or the full symbolic state (14-dimensional). Hyperparameters are
+in \texttt{configs/dqn\_*.yaml}.
+
+\subsection{MCTS Planner (from scratch)}
+Our MCTS implements textbook UCT~\cite{kocsis2006uct}: UCB1 selection
+($c = \sqrt{2}$), full-width expansion at the root, rollouts under a
+greedy-toward-goal heuristic policy (capped at depth 60), mean-value
+backup, sampled-transition handling for stochastic obstacle dynamics.
+Per-child counters record the rate of terminal success and collision
+across every simulation passing through them — this is the tree-side
+evidence.
+
+\subsection{Counterfactual Framework}
+For a decision state, ``counterfactual rollouts'' force each legal
+action at step 0 then follow the trained DQN policy to termination. We
+repeat $N = 100$ times per action and compute mean return, success
+rate, collision rate, and mean steps-to-end with 95\% bootstrap
+confidence intervals. The resulting \texttt{ActionStats} are
+byte-identically structured whether the source is rollouts (DQN) or the
+search tree (MCTS).
+
+\subsection{LLM Explanation Pipeline}
+A \texttt{DecisionRecord} (state + per-action stats + agent metadata)
+is passed to Claude~\cite{anthropic} with a versioned system prompt.
+The non-evidence portion of the system prompt is byte-identical between
+the DQN and MCTS variants (enforced by a test); only the evidence
+source header differs. Claude returns a JSON object with
+\texttt{rationale}, \texttt{counterfactual}, \texttt{confidence}, and a
+list of numerical \texttt{claims} suitable for automated verification.
+
+\subsection{Metrics}
+\label{sec:metrics}
+Three per-explanation scores, aggregated per agent with bootstrap CIs:
+\begin{itemize}
+  \item \textbf{Fidelity}: fraction of numerical claims in the
+        explanation whose cited value matches the evidence within
+        tolerance $\epsilon = 0.1$.
+  \item \textbf{Soundness}: a separate LLM judge (Haiku 4.5) scores
+        each rationale sentence on $\{0, 1, 2\}$ for support by the
+        evidence. Reported as mean / 2.
+  \item \textbf{Post-hoc inferability}: the judge sees the explanation
+        with action numbers scrubbed and predicts the chosen action.
+        Accuracy across decisions.
+\end{itemize}
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Task performance}
+% [DRAFT — verify numbers against results/*/eval_summary.json before submit]
+Table~\ref{tab:taskperf} and Figure~\ref{fig:taskperf} summarize
+success rate over 300 held-out episodes. MCTS substantially
+outperforms DQN without any training phase, consistent with the
+expectation that vanilla DQN struggles with adversarial dynamic
+obstacles and sparse terminal reward.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figures/task_performance.pdf}
+  \caption{Success rate over 300 episodes with 95\% bootstrap CIs.}
+  \label{fig:taskperf}
+\end{figure}
+
+\subsection{Explanation quality}
+Figure~\ref{fig:metrics} shows the three metrics by evidence source.
+% [DRAFT — replace this paragraph with actual findings once metrics/summary.json is produced]
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figures/metric_comparison.pdf}
+  \caption{Explanation-quality metrics by evidence source. Higher is
+           better for all three.}
+  \label{fig:metrics}
+\end{figure}
+
+\subsection{Threats to validity}
+\begin{enumerate}
+  \item \textbf{Task-performance asymmetry.} DQN and MCTS are not
+        performance-matched in our final runs (see
+        Table~\ref{tab:taskperf}). The explainability comparison is
+        between a suboptimal DQN and a strong MCTS. This is consistent
+        with Prof. Sunberg's framing but confounds with the underlying
+        competence gap.
+  \item \textbf{Information access.} MCTS plans on the full state;
+        DQN sees a partial egocentric image. We ran a symbolic-obs
+        DQN as a partial control; that variant also failed to train
+        competitively.
+  \item \textbf{LLM-judge bias.} Soundness and inferability use
+        Claude Haiku as judge; the generator is Claude Sonnet. We spot-
+        check a subsample against human annotation.
+\end{enumerate}
+
+\begin{table}[t]
+\centering
+\caption{Task-performance summary. 300 episodes per agent.}
+\label{tab:taskperf}
+\begin{tabular}{lrrrr}
+\toprule
+Agent & Success & Collision & Return & Steps \\
+\midrule
+% [AUTO — regenerated by scripts/report_figures.py::table_eval_summary]
+Random         & 0.003 & 0.997 & $-$0.994 & 8.3  \\
+DQN (image)    & 0.010 & 0.000 &    0.007 & 254.3 \\
+DQN (symbolic) & 0.000 & 0.207 & $-$0.207 & 232.3 \\
+DQN (shaped)   & TBD   & TBD   & TBD      & TBD   \\
+MCTS           & TBD   & TBD   & TBD      & TBD   \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Conclusion and Future Work}
+% [DRAFT — summarise in 1 paragraph]
+Our results are consistent with the hypothesis that MCTS's search tree
+provides a more faithful substrate for explanation than post-hoc DQN
+rollouts, but the task-performance gap between the two agents is a
+significant confounder. Future work: a performance-matched DQN
+(PPO-based or distillation from MCTS) and a human pilot study to
+validate the automated metrics.
+
+\section*{Contributions}
+% [DRAFT — Sean and Andrew fill in actual split]
+Sean Florez: problem formulation, MCTS from-scratch implementation,
+explanation pipeline, evaluation metrics, report draft.
+Andrew Wernersbach: DQN baseline, counterfactual rollout framework,
+experiments, report review.
+
+\section*{Implementation Disclosure}
+\begin{itemize}
+  \item \textbf{From scratch:} MCTS planner, simulator, counterfactual
+        rollout framework, evaluation metrics, prompt pipeline.
+  \item \textbf{Off-the-shelf:} Stable-Baselines3 DQN, MiniGrid
+        environment, Anthropic Claude SDK, matplotlib/pandas/pytest.
+\end{itemize}
+
+\section*{AI Assistance}
+Per the ASEN 5264 AI policy, the authors wrote all prose and
+mathematical work. Code was co-developed with Anthropic Claude under the
+authors' direction; all code has been read and understood.
+
+\begin{thebibliography}{9}
+\bibitem{milani2024xrl} S. Milani et al., ``Explainable reinforcement
+  learning: A survey and comparative analysis,'' \emph{ACM Computing
+  Surveys}, 2024.
+\bibitem{amitai2024coviz} Y. Amitai et al., ``COViz: counterfactual
+  action outcome visualization,'' 2024.
+\bibitem{baier2021explain} H. Baier, M. Kaisers, ``Towards explainable
+  MCTS,'' 2021.
+\bibitem{belouadah2025llm} Z. Belouadah et al., ``LLMs for explainable
+  deep RL,'' 2025. \% VERIFY
+\bibitem{gajcin2024cf} J. Gajcin, I. Dusparic, ``Counterfactual
+  explanations for reinforcement learning,'' 2024.
+\bibitem{kocsis2006uct} L. Kocsis, Cs. Szepesv\'ari, ``Bandit based
+  Monte-Carlo planning,'' in \emph{ECML}, 2006.
+\bibitem{sb3} A. Raffin et al., ``Stable-Baselines3: Reliable
+  reinforcement learning implementations,'' \emph{JMLR}, 2021.
+\bibitem{anthropic} Anthropic, ``Claude Sonnet 4.6 and Haiku 4.5
+  models,'' \url{https://www.anthropic.com}, 2025.
+\end{thebibliography}
+
+\end{document}

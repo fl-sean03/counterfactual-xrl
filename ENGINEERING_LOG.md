@@ -102,3 +102,73 @@ Sean delegated to push through. Decisions:
 
 **Why these choices:** best expected deliverable per remaining time
 budget, honouring syllabus AI policy and the prof's stated question.
+
+## 2026-04-17 — DQN reward-shaping attempt
+
+**What:** Added `DistanceShapingWrapper` with potential-based Manhattan
+reward `r' = r + 0.03 * (d_prev - d_now)`. Retrained DQN on symbolic
+obs + shaping, 300k steps, higher exploration (0.5 → 0.1 final eps),
+larger buffer, lr 5e-4.
+**Why:** Hypothesis — the stall local minimum comes from sparse +
+adversarial reward; a dense gradient toward the goal should break it.
+**Result:** Final eval over 300 eps: **0.0% success, 16.7% collision,
+234 avg steps.** Shaping did not help; agent still either collides
+(when it does move) or times out.
+**Diagnosis:** The adversarial obstacle dynamics plus the 0 no-op
+reward apparently present too strong a gradient toward freezing for
+DQN. Would need either (a) PPO (better exploration via on-policy
+sampling), (b) curriculum (smaller grids first), (c) DQN with
+imitation-from-MCTS warmup.
+**Decision:** Accept suboptimal DQN per Sunberg's "suboptimal RL"
+framing. Use image-DQN (0.010 success, 0.0 collisions — a degenerate
+"stay still" policy) as the DQN baseline. This is actually a
+scientifically interesting specimen: an agent that learned a risk-averse
+failure mode but never learned the task. The explanations for *why* it
+stays still should be interesting.
+**Next:** Build decision records on shared held-out trajectories,
+run mock explainer + metrics end-to-end.
+
+## 2026-04-17 — MCTS full eval (50 episodes)
+
+**What:** Ran MCTS (500 sims, greedy rollout) over 50 fresh seeds.
+**Why:** Get a real sample + CIs rather than the 5-episode smoke test.
+**Result:** **50/50 success (100%), mean return 0.934 [95%CI 0.928,
+0.939], 18.8 avg steps.** The empirical zero-collision result is
+remarkable — MCTS's full-state planning and greedy rollout heuristic
+handle the dynamic obstacles flawlessly on this grid size.
+**Next:** Build shared decision records.
+
+## 2026-04-17 — Decision record builder, tight scope
+
+**What:** Built `DecisionRecord`s for 3 shared seeds × first 15 steps
+per trajectory × both agents. DQN image-obs baseline and MCTS, 20
+rollouts/action, 40-step rollout cap.
+**Why:** Full trajectories were too slow (DQN stalls → 256-step
+rollouts each) and we need the shared evidence format validated
+end-to-end before running real API.
+**Result:** 45 DQN records + 45 MCTS records; all pass schema
+validation. DQN records are notably degenerate: nearly all
+per-action stats show success=0, collision=0 (agent stalls → 40-step
+cap triggers → return 0 across the board). MCTS records have
+non-trivial visit-count imbalances and per-action success rates,
+exactly the rich evidence the explainer needs.
+**Observation:** This asymmetry is load-bearing for RQ1: DQN's
+counterfactual rollouts provide almost no signal, because the policy
+itself is degenerate. MCTS's tree provides rich evidence even at the
+same decision state. The *suboptimality* of DQN directly degrades the
+quality of its explanation evidence — this is the story.
+**Next:** Run explainer + metrics with mock client; verify pipeline;
+generate figures.
+
+## 2026-04-17 — Mock explainer + metrics pipeline works end-to-end
+
+**What:** 90 mock explanations generated (45/agent), 270 mock judge
+calls, full metrics produced. No API spend.
+**Why:** Validate the whole pipeline before Sean plugs in his key.
+**Result:** Pipeline works. Mock outputs are canned (fidelity=1 by
+construction, soundness=0 because MockJudge doesn't rate). With a real
+API key + `--force-mock` removed, this will produce meaningful scores.
+**Figures:** `task_performance.pdf` and `learning_curves.pdf` and
+`metric_comparison.pdf` all regenerated. `eval_summary.csv` has the
+final task-performance numbers.
+**Next:** Commit, then Phase 7 chatbot scaffold + Phase 9 polish.
