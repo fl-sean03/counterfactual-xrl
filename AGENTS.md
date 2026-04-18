@@ -41,3 +41,9 @@ src/
 This is the central question driving the comparison. The hypothesis: MCTS explanations
 are higher fidelity because the search tree provides direct evidence for decisions,
 while DQN requires post-hoc rollout analysis to reconstruct similar evidence.
+
+## Post-Proposal Feedback
+
+Prof. Sunberg approved the proposal and suggested a **pilot human study** as a depth
+extension — have participants unfamiliar with the environment judge whether the
+generated explanations make sense. Full feedback: `Proposal/feedback.md`.
