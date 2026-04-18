@@ -1,0 +1,18 @@
+agent: mcts
+obs_mode: symbolic   # MCTS uses the simulator; obs_mode affects tree dumping only
+
+seed: 0
+
+mcts:
+  sims_per_decision: 500
+  c_ucb: 1.4142135624   # sqrt(2)
+  max_rollout_depth: 60
+  rollout_policy: greedy   # "random" or "greedy"
+  gamma: 1.0
+
+eval:
+  n_episodes: 100   # MCTS is slower per step than DQN; start small
+  base_seed: 10000
+
+output:
+  run_dir: results/mcts/baseline

@@ -1,0 +1,28 @@
+agent: dqn
+obs_mode: image   # flattened 7x7x3 = 147-d vector + MlpPolicy
+
+seed: 0
+total_timesteps: 300_000
+
+sb3_kwargs:
+  learning_rate: 0.0001
+  buffer_size: 50_000
+  learning_starts: 1000
+  batch_size: 64
+  tau: 1.0
+  gamma: 0.99
+  train_freq: 4
+  gradient_steps: 1
+  target_update_interval: 1000
+  exploration_fraction: 0.3
+  exploration_initial_eps: 1.0
+  exploration_final_eps: 0.05
+  policy_kwargs:
+    net_arch: [256, 256]
+
+eval:
+  n_episodes: 300
+  base_seed: 10000
+
+output:
+  run_dir: results/dqn/baseline
