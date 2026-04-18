@@ -54,13 +54,43 @@ tree?
 \end{abstract}
 
 \section{Introduction}
-% [DRAFT — write last, motivated by actual findings]
-Reinforcement learning agents choose actions, but often the reason for a
-choice lives inside opaque neural network weights. Online planners, by
-contrast, construct an explicit deliberation record — the search tree —
-before each action. We study whether that structural difference yields
-measurably better natural-language explanations when both agents are
-asked to justify the same decision.
+% [DRAFT — rewrite in your voice. The findings below are real; the
+%         phrasing is a starting point.]
+When a reinforcement learning agent chooses an action, we usually know
+\emph{what} it chose but not \emph{why}. The action-value estimates
+behind a deep Q-network's decision live inside neural network weights,
+so its reasoning is opaque and only indirectly recoverable via post-hoc
+methods like counterfactual rollouts. Online planners such as
+Monte Carlo Tree Search (MCTS) are structurally different: by the time
+they commit to an action, they have already written down — in the form
+of a search tree — a record of which futures they simulated and what
+happened in each. The tree \emph{is} the agent's deliberation.
+
+This paper asks, following Prof.\ Sunberg's framing, whether that
+structural difference has an observable effect on explanation quality.
+Concretely: given the same decision state and the same language model,
+do MCTS-sourced explanations cite numbers that actually match the
+evidence more often than DQN-sourced explanations do?
+
+We compare the two paradigms on
+\texttt{MiniGrid-Dynamic-Obstacles-8x8}, a stochastic gridworld, under
+a shared evidence-to-explanation pipeline: a structured
+\texttt{DecisionRecord} is extracted from each agent (counterfactual
+rollouts for DQN, the search tree for MCTS), passed through an
+identically-formatted LLM prompt (only the ``evidence source'' header
+differs), and scored on three metrics --- fidelity, soundness, and
+post-hoc inferability --- with bootstrap confidence intervals.
+
+Our empirical finding is that MCTS-tree evidence yields nearly double
+the fidelity of DQN-rollout evidence (0.94 vs.\ 0.49, 95\% CIs
+non-overlapping) and substantially higher soundness (0.90 vs.\ 0.77),
+while post-hoc inferability is statistically tied. A plausible
+mechanism, supported by our trained DQN's settling into a degenerate
+stall policy, is that \emph{the suboptimality of the underlying agent
+directly degrades the quality of the evidence available for
+explanation}. When DQN's counterfactual rollouts all yield zero return,
+the LLM is asked to justify a choice against an evidence row with no
+signal in it.
 
 \paragraph{Contributions.}
 \begin{itemize}
