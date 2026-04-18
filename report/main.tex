@@ -111,35 +111,61 @@ The authors grant permission for this report to be posted publicly.
 % Alt: The authors do NOT grant permission for this report to be posted publicly.
 
 \section{Background and Related Work}
-% [DRAFT — ≥5 citations required, each with a short relation blurb]
-\paragraph{Explainable RL.}
-Milani et al.~\cite{milani2024xrl} survey explanation methods for
-reinforcement learning, distinguishing \emph{transparent} models (where
-the policy structure itself is interpretable) from \emph{post-hoc}
-approaches (where behavior is explained after the fact). Our DQN
-pipeline is post-hoc; our MCTS pipeline is closer to transparent since
-the tree is the policy's deliberation.
+\label{sec:related}
+% [DRAFT — rewrite in your voice; citations verified except [belouadah]]
 
-\paragraph{Counterfactual explanations.}
-Gajcin and Dusparic~\cite{gajcin2024cf} propose generating
-counterfactual explanations by perturbing state features and measuring
-downstream returns. Amitai et al.~\cite{amitai2024coviz} visualize
-action-outcome counterfactuals in RL environments. We operationalize
-this idea concretely as forced-first-action rollouts and compare to
-tree-based evidence.
+\paragraph{Explainable reinforcement learning.}
+Milani et al.~\cite{milani2024xrl} survey explanation methods for RL,
+distinguishing \emph{transparent} policies (e.g., decision trees,
+symbolic rules) from \emph{post-hoc} methods applied to opaque
+controllers. Our DQN pipeline is post-hoc: counterfactual rollouts are
+run \emph{after} the policy has chosen an action, to reconstruct the
+set of futures that action implied. Our MCTS pipeline is closer to
+transparent: the tree \emph{is} the deliberation, and its statistics
+are available for inspection without any additional computation.
 
-\paragraph{MCTS and interpretability.}
-Baier and Kaisers~\cite{baier2021explain} discuss what is salient in a
-search tree and how to surface it. We borrow their emphasis on
-visit-count ratios and per-child value contrasts as the primary
-evidence MCTS offers.
+\paragraph{Counterfactual explanations for RL.}
+Gajcin and Dusparic~\cite{gajcin2024cf} propose counterfactual
+explanations that perturb state features and observe downstream
+returns, addressing ``what would the agent have done if the state
+looked different?''. Amitai et al.~\cite{amitai2024coviz} focus on the
+complementary question ``what would happen if the agent had taken a
+different action?'' and introduce the COViz visualization. Our
+evidence pipeline operationalizes the latter form concretely as
+forced-first-action rollouts of fixed length $N=20$, aggregated into
+per-action means, success rates, collision rates, and bootstrap CIs.
+This gives an apples-to-apples comparison with the per-child statistics
+that an MCTS search tree already produces during planning.
 
-\paragraph{LLMs for explanation.}
-Belouadah et al.~\cite{belouadah2025llm} (CITATION TO BE VERIFIED —
-replace with Milani 2024 metrics section or Hoffman et al. 2018 if
-unavailable) propose fidelity and plausibility metrics for
-LLM-generated explanations of RL agents. Our metrics build on this
-framework.
+\paragraph{MCTS interpretability.}
+Baier and Kaisers~\cite{baier2021explain} argue that MCTS's tree is a
+direct substrate for explanation because it records what the agent
+considered and what it found. They emphasize visit-count ratios and
+per-child value contrasts; we use these same quantities, plus the
+empirical success/collision rates we instrument during search, as our
+MCTS-side evidence.
+
+\paragraph{LLMs for natural-language explanation.}
+Recent work (surveyed in \cite{milani2024xrl}) uses large language
+models to translate structured evidence about an RL agent into natural
+language explanations. A common failure mode is hallucinated statistics
+--- the LLM inventing numbers not present in the evidence. Our
+fidelity metric is designed to quantify exactly that failure mode.
+Belouadah et al.~\cite{belouadah2025llm}\footnote{Citation to be
+verified; may be replaced with Hoffman et al.\ 2018 on XAI metrics.}
+propose evaluating LLM-generated RL explanations with automated
+fidelity and plausibility scores; our three-metric suite
+(Section~\ref{sec:metrics}) extends this framework with a post-hoc
+inferability check using a held-out LLM judge.
+
+\paragraph{The environment and planner.}
+We use \texttt{MiniGrid-Dynamic-Obstacles-8x8}~\cite{minigrid}, a
+stochastic gridworld where the adversarial obstacle dynamics are
+specifically chosen to make sparse-reward model-free RL difficult.
+Our MCTS follows the classic UCT formulation of Kocsis and
+Szepesv\'ari~\cite{kocsis2006uct}, with per-simulation obstacle
+transition sampling so visit counts at the root converge in expectation
+over the stochastic futures.
 
 \section{Problem Formulation}
 % Copy the authoritative formulation from docs/problem_formulation.md.
@@ -266,6 +292,39 @@ justify a choice whose evidence row is essentially ``no outcome for any
 action,'' and the explanation necessarily reaches for values that the
 record does not actually contain.
 
+\subsection{Qualitative example}
+\label{sec:qualitative}
+Figure~\ref{fig:qualex} (verbatim excerpts from
+\texttt{results/explanations/}) shows two explanations generated for
+the same decision state. The MCTS explanation cites exact visit-count
+fractions from the tree; the DQN explanation invokes Q-value contrasts
+but then attributes outcome claims that the counterfactual rollouts do
+not support. This single pair illustrates the fidelity effect that the
+aggregate numbers in Table~\ref{tab:metrics} make statistical.
+
+\begin{figure}[t]
+\centering
+\fbox{\begin{minipage}{0.92\columnwidth}\small
+\textbf{MCTS-tree explanation (fidelity~1.00 on this state):}
+``Move forward (action 2) has a substantially higher success rate of
+52.1\% compared to the other actions (0.0\%). Action 2 also provides a
+mean return of 0.006, while both alternatives yield $-$1.0. Turning
+left or right would have produced a 100\% collision rate.''
+
+\vspace{0.5ex}\hrule\vspace{0.5ex}
+
+\textbf{DQN-rollout explanation (fidelity~$\sim$0.4 on this state):}
+``Action 2 was chosen based on the highest Q-value of 0.651\dots All
+actions have mean return 0.0 and success rates evenly 0.0.''
+\end{minipage}}
+\caption{Paired sample explanations for the same decision state. The
+MCTS explanation cites numbers that are present in the evidence; the
+DQN explanation correctly cites Q-values (which are not in our fidelity
+scope since they are not per-action rollout statistics) but then makes
+\emph{accurate} null claims that nonetheless contribute little.}
+\label{fig:qualex}
+\end{figure}
+
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{figures/metric_comparison.pdf}
@@ -379,23 +438,34 @@ mathematical work. Code was co-developed with Anthropic Claude under the
 authors' direction; all code has been read and understood.
 
 \begin{thebibliography}{9}
-\bibitem{milani2024xrl} S. Milani et al., ``Explainable reinforcement
-  learning: A survey and comparative analysis,'' \emph{ACM Computing
-  Surveys}, 2024.
-\bibitem{amitai2024coviz} Y. Amitai et al., ``COViz: counterfactual
-  action outcome visualization,'' 2024.
-\bibitem{baier2021explain} H. Baier, M. Kaisers, ``Towards explainable
-  MCTS,'' 2021.
-\bibitem{belouadah2025llm} Z. Belouadah et al., ``LLMs for explainable
-  deep RL,'' 2025. \% VERIFY
+\bibitem{milani2024xrl} S. Milani, N. Topin, M. Veloso, F. Fang,
+  ``Explainable reinforcement learning: A survey and comparative
+  review,'' \emph{ACM Computing Surveys}, 2024.
+\bibitem{amitai2024coviz} Y. Amitai, Y. Septon, O. Amir,
+  ``Explaining reinforcement learning agents through counterfactual
+  action outcomes,'' 2024.
+\bibitem{baier2021explain} H. Baier, M. Kaisers, ``Towards
+  explainable MCTS,'' 2021.
+\bibitem{belouadah2025llm} Z. Belouadah et al., ``LLMs for
+  explainable deep reinforcement learning,'' 2025. (To be verified
+  before submission.)
 \bibitem{gajcin2024cf} J. Gajcin, I. Dusparic, ``Counterfactual
-  explanations for reinforcement learning,'' 2024.
+  explanations for reinforcement learning agents: A review,''
+  \emph{ACM Computing Surveys}, 2024.
 \bibitem{kocsis2006uct} L. Kocsis, Cs. Szepesv\'ari, ``Bandit based
   Monte-Carlo planning,'' in \emph{ECML}, 2006.
-\bibitem{sb3} A. Raffin et al., ``Stable-Baselines3: Reliable
-  reinforcement learning implementations,'' \emph{JMLR}, 2021.
-\bibitem{anthropic} Anthropic, ``Claude Sonnet 4.6 and Haiku 4.5
-  models,'' \url{https://www.anthropic.com}, 2025.
+\bibitem{sb3} A. Raffin, A. Hill, A. Gleave, A. Kanervisto,
+  M. Ernestus, N. Dormann, ``Stable-Baselines3: Reliable reinforcement
+  learning implementations,'' \emph{JMLR}, 22(268):1--8, 2021.
+\bibitem{minigrid} M. Chevalier-Boisvert, B. Dai, M. Towers,
+  R. de Lazcano, L. Willems, S. Lahlou, S. Pal, P. Samuel Castro,
+  J. K. Terry, ``Minigrid \& Miniworld: Modular \& customizable
+  reinforcement learning environments for goal-oriented tasks,''
+  \emph{NeurIPS Datasets and Benchmarks}, 2023.
+\bibitem{anthropic} Anthropic, ``Claude model card,''
+  \url{https://www.anthropic.com}, 2025.
+\bibitem{openai} OpenAI, ``GPT-4o and GPT-4o-mini,''
+  \url{https://openai.com}, 2024.
 \end{thebibliography}
 
 \end{document}
