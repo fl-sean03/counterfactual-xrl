@@ -38,8 +38,11 @@ def main() -> None:
     obs_mode = cfg["obs_mode"]
     run_dir = ensure_run_dir(Path(cfg["output"]["run_dir"]) / f"seed{seed}")
 
+    shaping = bool(cfg.get("shaping", False))
+    shaping_coef = float(cfg.get("shaping_coef", 0.02))
+
     def env_thunk():
-        env = make_env(mode=obs_mode)
+        env = make_env(mode=obs_mode, shaping=shaping, shaping_coef=shaping_coef)
         return Monitor(env, filename=str(run_dir / "monitor.csv"))
 
     venv = DummyVecEnv([env_thunk])
@@ -71,6 +74,8 @@ def main() -> None:
             "total_timesteps": int(cfg["total_timesteps"]),
             "train_seconds": dt,
             "checkpoint": str(ckpt),
+            "shaping": shaping,
+            "shaping_coef": shaping_coef,
         },
     )
     print(f"DONE. Trained for {dt:.1f}s. Saved {ckpt}")

@@ -64,17 +64,62 @@ class FlatSymbolicObsWrapper(gym.ObservationWrapper):
         return vec
 
 
-def make_env(mode: str = "image", seed: int | None = None) -> gym.Env:
+class DistanceShapingWrapper(gym.Wrapper):
+    """Reward shaping to combat the DQN "stay still" local minimum.
+
+    Adds a small potential-based shaping term equal to the reduction in
+    Manhattan distance to the goal at every step:
+        r' = r + 0.02 * (d_prev - d_now)
+    Potential-based shaping (Ng, Harada, Russell 1999) preserves the
+    optimal policy under a discounted-return objective. The base reward
+    (+reach goal, -collision, 0 else) is untouched at terminal states.
+    """
+
+    def __init__(self, env: gym.Env, coef: float = 0.02) -> None:
+        super().__init__(env)
+        self._coef = coef
+        self._prev_dist: float | None = None
+
+    def _manhattan_to_goal(self) -> float:
+        u = self.env.unwrapped
+        ax, ay = u.agent_pos
+        gx, gy = u.width - 2, u.height - 2
+        return float(abs(gx - ax) + abs(gy - ay))
+
+    def reset(self, **kwargs):
+        out = self.env.reset(**kwargs)
+        self._prev_dist = self._manhattan_to_goal()
+        return out
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        if self._prev_dist is not None and not terminated:
+            cur = self._manhattan_to_goal()
+            reward = reward + self._coef * (self._prev_dist - cur)
+            self._prev_dist = cur
+        return obs, reward, terminated, truncated, info
+
+
+def make_env(
+    mode: str = "image",
+    seed: int | None = None,
+    shaping: bool = False,
+    shaping_coef: float = 0.02,
+) -> gym.Env:
     """Construct a wrapped MiniGrid-Dynamic-Obstacles-8x8 env.
 
     Args:
         mode: one of ``"image"`` or ``"symbolic"``.
         seed: optional seed for the initial reset.
+        shaping: if True, add DistanceShapingWrapper to the base env
+                 (before obs wrapping).
 
     Returns:
         A ``gymnasium.Env`` with the chosen observation wrapper.
     """
     env = gym.make(ENV_ID)
+    if shaping:
+        env = DistanceShapingWrapper(env, coef=shaping_coef)
     if mode == "image":
         # 7x7x3 image, flattened to 147-d vector for MlpPolicy.
         # (Default SB3 NatureCNN requires 36x36 minimum; MiniGrid's 7x7

@@ -1,0 +1,14 @@
+generator:
+  model: claude-sonnet-4-6
+  max_tokens: 1024
+  cost_cap_usd: 10.0
+  mock_if_no_api_key: true
+
+judge:
+  model: claude-haiku-4-5
+  max_tokens: 512
+  cost_cap_usd: 5.0
+  mock_if_no_api_key: true
+
+cache_dir: results/explanations/cache
+log_dir: results/explanations/logs
