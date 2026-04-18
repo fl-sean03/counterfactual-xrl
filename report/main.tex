@@ -81,10 +81,10 @@ identically-formatted LLM prompt (only the ``evidence source'' header
 differs), and scored on three metrics --- fidelity, soundness, and
 post-hoc inferability --- with bootstrap confidence intervals.
 
-Our empirical finding is that MCTS-tree evidence yields nearly double
-the fidelity of DQN-rollout evidence (0.94 vs.\ 0.49, 95\% CIs
-non-overlapping) and substantially higher soundness (0.90 vs.\ 0.77),
-while post-hoc inferability is statistically tied. A plausible
+Our empirical finding is that MCTS-tree evidence yields more than twice
+the fidelity of DQN-rollout evidence (0.93 vs.\ 0.44; 95\% CIs
+non-overlapping) and substantially higher soundness (0.89 vs.\ 0.76),
+while post-hoc inferability is statistically tied ($\sim$0.95 for both). A plausible
 mechanism, supported by our trained DQN's settling into a degenerate
 stall policy, is that \emph{the suboptimality of the underlying agent
 directly degrades the quality of the evidence available for
@@ -248,10 +248,10 @@ obstacles and sparse terminal reward.
 Figure~\ref{fig:metrics} and Table~\ref{tab:metrics} compare the three
 metrics across evidence sources, using 45 matched decisions per agent.
 % [DRAFT — rewrite in your voice; verify numbers.]
-MCTS-tree-sourced explanations attain nearly double the fidelity of
-DQN-rollout-sourced ones (0.94 vs 0.49) and substantially higher
-soundness (0.90 vs 0.77). Post-hoc inferability is essentially tied
-(0.96 vs 0.93; CIs overlap): both explanations carry enough signal for
+MCTS-tree-sourced explanations attain more than twice the fidelity of
+DQN-rollout-sourced ones (0.93 vs 0.44) and substantially higher
+soundness (0.89 vs 0.76). Post-hoc inferability is essentially tied
+(0.96 vs 0.95; CIs overlap): both explanations carry enough signal for
 a judge to recover the chosen action, but only MCTS explanations cite
 numbers that actually match the evidence roughly twice as often.
 
@@ -312,28 +312,51 @@ MCTS (500 sims) & 1.000 & 0.000 & 0.934 & 18.3 \\
 \begin{table}[t]
 \centering
 \caption{Explanation-quality metrics (real OpenAI run: gpt-4o generator,
-gpt-4o-mini judge). $n=45$ decisions per evidence source. 95\% bootstrap
-CIs in brackets.}
+gpt-4o-mini judge). $n=150$ (DQN), $n=145$ (MCTS) decisions. 95\%
+bootstrap CIs in brackets (1000 resamples).}
 \label{tab:metrics}
 \begin{tabular}{lrr}
 \toprule
 Metric & DQN rollout evidence & MCTS tree evidence \\
 \midrule
-Fidelity       & 0.490 [0.45, 0.53] & \textbf{0.940} [0.91, 0.97] \\
-Soundness      & 0.773 [0.74, 0.81] & \textbf{0.898} [0.86, 0.93] \\
-Inferability   & 0.956 [0.89, 1.00] & 0.933 [0.84, 1.00] \\
+Fidelity       & 0.437 [0.41, 0.47] & \textbf{0.933} [0.92, 0.95] \\
+Soundness      & 0.758 [0.73, 0.78] & \textbf{0.891} [0.87, 0.91] \\
+Inferability   & 0.960 [0.93, 0.99] & 0.952 [0.91, 0.99] \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \section{Conclusion and Future Work}
-% [DRAFT — summarise in 1 paragraph]
-Our results are consistent with the hypothesis that MCTS's search tree
-provides a more faithful substrate for explanation than post-hoc DQN
-rollouts, but the task-performance gap between the two agents is a
-significant confounder. Future work: a performance-matched DQN
-(PPO-based or distillation from MCTS) and a human pilot study to
-validate the automated metrics.
+% [DRAFT — rewrite in your voice]
+Our main finding is that MCTS's search tree yields natural-language
+explanations that are roughly twice as faithful to their underlying
+evidence as DQN's post-hoc counterfactual rollouts, under a shared LLM
+pipeline on matched decision states. Two important caveats condition
+this result. First, our trained DQN failed to escape a stall-policy
+local minimum; the comparison is therefore between a \emph{suboptimal}
+DQN (consistent with Sunberg's original framing) and a strong MCTS,
+and part of the fidelity gap is explained by the fact that the DQN's
+counterfactual rollouts contain almost no signal to cite. Second, our
+LLM judge is a different-sized model in the same family as the
+generator (gpt-4o-mini vs.\ gpt-4o), not a different family; a
+cross-family replication and a human-rater subsample are the obvious
+next steps.
+
+\paragraph{Future work.}
+\begin{enumerate}
+  \item A performance-matched DQN --- either via PPO, reward shaping,
+        or distillation from MCTS --- so the task-competence variable
+        is controlled.
+  \item A pilot human study (following Prof.\ Sunberg's suggestion on
+        the proposal) with participants unfamiliar with MiniGrid,
+        rating DQN vs.\ MCTS explanations on clarity, plausibility, and
+        usefulness; we have scaffolded the chatbot interface for this
+        in \texttt{scripts/chat.py}.
+  \item Cross-family LLM replication (judge = Claude or Gemini) to
+        quantify judge-model bias in the soundness metric.
+  \item Extension to larger / partially observable MiniGrid variants,
+        where MCTS's full-state advantage is reduced.
+\end{enumerate}
 
 \section*{Contributions}
 % [DRAFT — Sean and Andrew fill in actual split]

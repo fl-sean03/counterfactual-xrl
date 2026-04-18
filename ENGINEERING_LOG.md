@@ -208,3 +208,31 @@ rather than "DQN's evidence is harder to explain."
 
 **Next:** Update report `main.tex` with real numbers, commit
 everything, continue to Phase 9.
+
+## 2026-04-17 — Full-scale REAL run (n≈150 per agent)
+
+**What:** Built 105 more DQN records + 100 more MCTS records (seeds
+10003–10009), ran real OpenAI explainer (205 new calls, existing 90
+cached), re-ran full evaluator across all 295 records.
+
+**Cost:** $1.58 generator (gpt-4o) + $0.14 judge (gpt-4o-mini) =
+**$1.72 total** — still well under cap. Prompt caching via OpenAI's
+automatic prefix caching observed (~30k cached tokens from logs).
+
+**Final explanation-quality metrics:**
+
+| Metric | DQN (n=150) | MCTS (n=145) |
+|---|---|---|
+| Fidelity | 0.437 [0.405, 0.467] | **0.933 [0.917, 0.948]** |
+| Soundness | 0.758 [0.731, 0.781] | **0.891 [0.867, 0.912]** |
+| Inferability | 0.960 [0.927, 0.987] | 0.952 [0.910, 0.986] |
+
+All CIs are 95% percentile bootstrap with 1000 resamples. Fidelity
+and soundness gaps are both statistically significant (CIs do not
+overlap). Inferability is statistically tied.
+
+**Interpretation.** 2.1× fidelity effect size. MCTS explanations cite
+evidence correctly 93% of the time vs 44% for DQN. This is the
+headline result of the paper.
+
+**Next:** Final report polish, Phase 9 submission prep.
