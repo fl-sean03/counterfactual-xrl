@@ -2,36 +2,56 @@
 
 ASEN 5264 Final Project — CU Boulder, Spring 2026
 
-## Overview
+**Authors:** Sean Florez, Andrew Wernersbach
+**Repo:** github.com/fl-sean03/counterfactual-xrl
 
-Comparing the explainability of deep RL (DQN) and online planning (MCTS) on the MiniGrid-Dynamic-Obstacles-8x8 environment. The core question: is online planning inherently more explainable because the search tree records the agent's deliberation?
+## Research Question
 
-**Approach:**
-1. Train a DQN agent and implement an MCTS planner on the same environment
-2. Build a counterfactual rollout framework that simulates alternative actions at each decision point
-3. Use an LLM to translate rollout/tree statistics into natural language explanations
-4. Compare explanation quality between the two paradigms
+Is suboptimal online planning more explainable than suboptimal deep RL,
+specifically because the search tree records the agent's deliberation?
 
-## Repository Contents
+## Approach
+
+Train DQN and MCTS agents on `MiniGrid-Dynamic-Obstacles-8x8-v0`, extract
+counterfactual statistics from each (rollouts for DQN, tree stats for MCTS),
+feed structured evidence to Claude, and compare generated explanations on
+fidelity, soundness, and post-hoc inferability.
+
+See [EXECUTION_PLAN.md](EXECUTION_PLAN.md) for the full phased plan.
+
+## Layout
 
 ```
-├── Proposal/           # Project proposal and assignment spec
-├── CONTEXT.md          # Full project context and reference material
-├── AGENTS.md           # Project state tracking
-└── README.md
+src/xrl/
+  agents/         # DQN (SB3 wrapper) + MCTS (from scratch)
+  envs/           # Wrappers + deep-copy simulator
+  analysis/       # Counterfactual rollouts + tree stats
+  explainer/      # Anthropic client + prompts + pipeline
+  eval/           # Metrics + eval runner
+  utils/          # Seeding, IO
+tests/            # pytest suite
+configs/          # YAML configs per experiment
+scripts/          # Entry points: train, eval, explain, smoke
+results/          # Run artifacts (gitignored)
+report/           # IEEE tex sources
+docs/             # Design notes + problem formulation
+Proposal/         # Original proposal + prof feedback
 ```
 
-## Environment
+## Setup
 
-- **MiniGrid-Dynamic-Obstacles-8x8-v0**: 8x8 gridworld with moving obstacles
-- State: agent position/orientation, obstacle positions, goal location
-- Actions: turn left, turn right, move forward
-- Reward: +1 (scaled by speed) for goal, -1 for collision
+```bash
+make install        # creates/updates conda env `xrl`, installs package
+make smoke          # sanity-check env loads and GPU is visible
+make test           # run pytest
+make lint           # ruff + black checks
+```
 
-## Key References
+## License / Release
 
-- Milani et al. (2024) — Explainable RL survey
-- Amitai et al. (2024) — COViz: counterfactual action outcome visualization
-- Baier & Kaisers (2021) — Towards Explainable MCTS
-- Belouadah et al. (2025) — LLMs for explainable deep RL
-- Gajcin & Dusparic (2024) — Counterfactual explanations for RL
+Release status TBD at report submission (see EXECUTION_PLAN.md §5 Phase 8).
+
+## References
+
+See `Proposal/proposal.md` for the citation list and
+`EXECUTION_PLAN.md` for the full research plan.
