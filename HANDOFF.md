@@ -9,19 +9,32 @@ work session._
 with mock LLM calls; runs with a real Anthropic key will produce
 meaningful metrics.
 
-### Empirical results so far
+### Empirical results (FINAL, real OpenAI run)
+
+**Task performance** (300 eps per DQN agent, 50 eps MCTS):
 
 | Agent | Success | Collision | Return | Steps |
 |---|---|---|---|---|
-| Random (baseline) | 0.003 | 0.997 | −0.994 | 8.3 |
+| Random | 0.003 | 0.997 | −0.994 | 8.3 |
 | DQN (image, 300k) | 0.010 | 0.000 | 0.007 | 254.3 |
 | DQN (symbolic, 200k) | 0.000 | 0.207 | −0.207 | 232.3 |
 | DQN (shaped, 300k) | 0.000 | 0.167 | −0.167 | 234.4 |
 | **MCTS (500 sims)** | **1.000** | **0.000** | **0.934** | **18.3** |
 
-**Decision records:** 45 per agent (3 seeds × 15 decisions) validated
-against the JSON schema. **Explanations + metrics:** 90 total run
-end-to-end with mock client — pipeline confirmed functional.
+**Explanation quality** (n=150 DQN / n=145 MCTS; gpt-4o generator,
+gpt-4o-mini judge; 95% bootstrap CIs):
+
+| Metric | DQN rollout | MCTS tree |
+|---|---|---|
+| Fidelity | 0.437 [0.41, 0.47] | **0.933 [0.92, 0.95]** |
+| Soundness | 0.758 [0.73, 0.78] | **0.891 [0.87, 0.91]** |
+| Inferability | 0.960 [0.93, 0.99] | 0.952 [0.91, 0.99] |
+
+Total API spend: **$1.72** (under $10 cap).
+
+Headline: **MCTS-tree evidence yields 2.1× the fidelity of DQN
+counterfactual rollouts at matched decision states.** CIs on fidelity
+and soundness do not overlap; inferability is statistically tied.
 
 ### What's genuinely done
 
@@ -45,23 +58,33 @@ See `ENGINEERING_LOG.md` for rationale on all of these:
 1. **DQN is suboptimal** — accepted per Sunberg's framing rather than
    burning more time on PPO or a curriculum.
 2. **Phase 7b human pilot — CUT.** Note as future work.
-3. **Phase 7a chatbot — SCAFFOLDED ONLY** (script exists; demo video
-   not produced).
-4. **LLM explainer — MOCK-ONLY runs so far.** Real API calls are
-   deliberately gated behind `ANTHROPIC_API_KEY`.
+3. **Phase 7a chatbot — SCAFFOLDED, smoke-tested** via scripted input.
+4. **LLM explainer — real OpenAI (gpt-4o + gpt-4o-mini).** Anthropic
+   path also available via `ANTHROPIC_API_KEY` + `provider: anthropic`
+   in config.
+5. **n scaled to ~150 per agent** — CIs on fidelity/soundness became
+   non-overlapping; no further scaling needed for the report's claim.
 
 ## What you (Sean) need to do
 
-### To get real metrics
+### API key rotation (do this first)
+
+The OpenAI key used in this session was pasted into the chat, so rotate
+it at https://platform.openai.com/api-keys before committing anything
+further.
+
+### Metrics are already produced
+
+`results/metrics/summary.json` has the final numbers. `results/explanations/`
+has 295 explanation JSONs. Costs: $1.72 total (all real, not mock).
+
+If you want to re-run from scratch against a different model/provider:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-rm -rf results/explanations results/metrics  # force re-run
+export OPENAI_API_KEY=sk-proj-...     # or ANTHROPIC_API_KEY=sk-ant-...
+rm -rf results/explanations results/metrics
 bash scripts/reproduce_all.sh
 ```
-
-Expected cost: **under $5** for 90 explanations + 270 judge calls at
-Sonnet + Haiku pricing.
 
 ### To finalize the report
 
