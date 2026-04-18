@@ -45,6 +45,7 @@ def main() -> None:
         model=jcfg["model"],
         cost_cap_usd=jcfg["cost_cap_usd"],
         log_dir=Path(cfg.get("log_dir", "results/explanations/logs")) / "judge",
+        provider=cfg.get("provider"),
     )
 
     out_dir = Path(args.out_dir)

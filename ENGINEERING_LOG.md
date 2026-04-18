@@ -172,3 +172,39 @@ API key + `--force-mock` removed, this will produce meaningful scores.
 `metric_comparison.pdf` all regenerated. `eval_summary.csv` has the
 final task-performance numbers.
 **Next:** Commit, then Phase 7 chatbot scaffold + Phase 9 polish.
+
+## 2026-04-17 — REAL end-to-end LLM run (OpenAI, gpt-4o + gpt-4o-mini)
+
+**What:** Switched explainer to OpenAI (gpt-4o as generator, gpt-4o-mini
+as judge — different sizes in same family). Cleared all mock outputs
+and re-ran full pipeline on 45 DQN records + 45 MCTS records.
+
+**Cost:** $0.695 (generator, 90 gpt-4o calls) + $0.045 (judge, 422
+gpt-4o-mini calls) = **$0.74 total** — well under cap.
+
+**Result — Hypothesis confirmed:**
+
+| Metric | DQN rollout evidence | MCTS tree evidence |
+|---|---|---|
+| Fidelity (claim-value match within ε=0.1) | 0.490 [0.445, 0.530] | **0.940 [0.914, 0.965]** |
+| Soundness (judge 0/1/2 per rationale sentence) | 0.773 [0.740, 0.807] | **0.898 [0.863, 0.929]** |
+| Post-hoc inferability (judge recovers action) | 0.956 [0.889, 1.000] | 0.933 [0.844, 1.000] |
+
+**Interpretation.** MCTS's search-tree evidence yields explanations with
+nearly 2× the fidelity and substantially higher soundness. The
+inferability gap is negligible (both ~94%, CIs overlap), meaning both
+explanations contain enough signal to identify the chosen action — but
+MCTS's explanations cite numbers that actually match the evidence
+roughly twice as often. This directly supports RQ1: the search tree
+records deliberation that translates faithfully into language, whereas
+DQN's post-hoc rollout stats are degenerate (stall policy → zero
+signal), and the LLM is forced to invent or approximate numbers.
+
+**Threat to validity still stands:** DQN here is a suboptimal stall
+policy, not a performance-matched agent. The comparison is between
+*suboptimal DQN* and *optimal MCTS* — exactly Sunberg's framing, but
+the fidelity gap may partially reflect "DQN has no useful evidence"
+rather than "DQN's evidence is harder to explain."
+
+**Next:** Update report `main.tex` with real numbers, commit
+everything, continue to Phase 9.

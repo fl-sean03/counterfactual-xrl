@@ -1,7 +1,12 @@
-"""Anthropic client wrapper with caching, retries, and cost tracking.
+"""LLM client wrappers (Anthropic and OpenAI) with caching, retries, cost tracking.
 
-Designed to be swappable with a ``MockClient`` for tests and for
-offline development when ``ANTHROPIC_API_KEY`` is not set.
+- ``AnthropicClient`` — Claude via Anthropic SDK, with prompt caching.
+- ``OpenAIClient`` — GPT models via OpenAI SDK.
+- ``MockClient`` — deterministic offline stub for tests and no-key dev.
+- ``make_client`` — picks a real client based on env vars, mock otherwise.
+
+The key is read from ``ANTHROPIC_API_KEY`` or ``OPENAI_API_KEY``; we never
+read from or write to disk.
 """
 
 from __future__ import annotations
@@ -26,11 +31,18 @@ class CallResult:
     raw: Any = None
 
 
-# Rough pricing (per 1M tokens) — update before real runs.
+# Rough USD pricing per 1M tokens. Update as providers change rates.
 PRICING = {
+    # Anthropic
     "claude-sonnet-4-6": {"in": 3.00, "out": 15.00, "cache_read": 0.30, "cache_write": 3.75},
     "claude-haiku-4-5": {"in": 1.00, "out": 5.00, "cache_read": 0.10, "cache_write": 1.25},
     "claude-opus-4-7": {"in": 15.00, "out": 75.00, "cache_read": 1.50, "cache_write": 18.75},
+    # OpenAI
+    "gpt-4o": {"in": 2.50, "out": 10.00, "cache_read": 1.25, "cache_write": 0.0},
+    "gpt-4o-mini": {"in": 0.15, "out": 0.60, "cache_read": 0.075, "cache_write": 0.0},
+    "gpt-4.1": {"in": 2.00, "out": 8.00, "cache_read": 0.50, "cache_write": 0.0},
+    "gpt-4.1-mini": {"in": 0.40, "out": 1.60, "cache_read": 0.10, "cache_write": 0.0},
+    "gpt-4.1-nano": {"in": 0.10, "out": 0.40, "cache_read": 0.025, "cache_write": 0.0},
 }
 
 
@@ -46,27 +58,15 @@ def estimate_cost(model: str, result: CallResult) -> float:
     )
 
 
-class AnthropicClient:
-    """Real Anthropic SDK wrapper. Uses prompt caching on system prompt."""
-
+class _BaseRealClient:
     def __init__(
         self,
-        model: str = "claude-sonnet-4-6",
+        model: str,
         max_tokens: int = 1024,
         cost_cap_usd: float = 10.0,
         log_dir: str | Path | None = None,
         max_retries: int = 3,
     ) -> None:
-        try:
-            from anthropic import Anthropic  # type: ignore
-        except ImportError as e:  # pragma: no cover
-            raise RuntimeError("anthropic SDK not installed") from e
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise RuntimeError(
-                "ANTHROPIC_API_KEY not set. Either `export ANTHROPIC_API_KEY=...` "
-                "or use MockClient for offline runs."
-            )
-        self._client = Anthropic()
         self.model = model
         self.max_tokens = max_tokens
         self.cost_cap_usd = cost_cap_usd
@@ -77,24 +77,46 @@ class AnthropicClient:
         self.total_cost: float = 0.0
         self.calls: int = 0
 
-    def call(
-        self,
-        system: str,
-        user: str,
-        cache_system: bool = True,
-    ) -> CallResult:
-        if self.total_cost >= self.cost_cap_usd:
-            raise RuntimeError(
-                f"Cost cap ${self.cost_cap_usd:.2f} reached; aborting further API calls."
+    def _log(self, system: str, user: str, result: CallResult) -> None:
+        if not self.log_dir:
+            return
+        with open(self.log_dir / f"call_{self.calls:04d}.json", "w") as f:
+            json.dump(
+                {
+                    "model": result.model,
+                    "system": system,
+                    "user": user,
+                    "text": result.text,
+                    "input_tokens": result.input_tokens,
+                    "output_tokens": result.output_tokens,
+                    "cache_read_tokens": result.cache_read_tokens,
+                    "cache_creation_tokens": result.cache_creation_tokens,
+                    "cost_usd": result.cost_usd,
+                },
+                f,
+                indent=2,
             )
 
+
+class AnthropicClient(_BaseRealClient):
+    """Claude via Anthropic SDK with prompt caching on the system prompt."""
+
+    def __init__(self, model: str = "claude-sonnet-4-6", **kwargs: Any) -> None:
+        try:
+            from anthropic import Anthropic  # type: ignore
+        except ImportError as e:  # pragma: no cover
+            raise RuntimeError("anthropic SDK not installed") from e
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            raise RuntimeError("ANTHROPIC_API_KEY not set")
+        super().__init__(model=model, **kwargs)
+        self._client = Anthropic()
+
+    def call(self, system: str, user: str, cache_system: bool = True) -> CallResult:
+        if self.total_cost >= self.cost_cap_usd:
+            raise RuntimeError(f"Cost cap ${self.cost_cap_usd:.2f} reached")
         system_blocks = [{"type": "text", "text": system}]
         if cache_system:
-            # cache_control only takes effect if the cached block is >= min
-            # cacheable tokens (1024 for sonnet). If your system prompt is
-            # shorter, caching is a no-op.
             system_blocks[0]["cache_control"] = {"type": "ephemeral"}
-
         last_err = None
         for attempt in range(self.max_retries):
             try:
@@ -109,56 +131,95 @@ class AnthropicClient:
                 last_err = e
                 time.sleep(2**attempt)
         else:
-            raise RuntimeError(
-                f"Anthropic call failed after {self.max_retries} retries: {last_err}"
-            )
-
+            raise RuntimeError(f"Anthropic call failed: {last_err}")
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
-        usage = getattr(resp, "usage", None)
+        u = getattr(resp, "usage", None)
         result = CallResult(
             text=text,
-            input_tokens=getattr(usage, "input_tokens", 0) or 0,
-            output_tokens=getattr(usage, "output_tokens", 0) or 0,
-            cache_read_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
-            cache_creation_tokens=getattr(usage, "cache_creation_input_tokens", 0) or 0,
+            input_tokens=getattr(u, "input_tokens", 0) or 0,
+            output_tokens=getattr(u, "output_tokens", 0) or 0,
+            cache_read_tokens=getattr(u, "cache_read_input_tokens", 0) or 0,
+            cache_creation_tokens=getattr(u, "cache_creation_input_tokens", 0) or 0,
             model=self.model,
             raw=resp,
         )
         result.cost_usd = estimate_cost(self.model, result)
         self.total_cost += result.cost_usd
         self.calls += 1
+        self._log(system, user, result)
+        return result
 
-        if self.log_dir:
-            with open(self.log_dir / f"call_{self.calls:04d}.json", "w") as f:
-                json.dump(
-                    {
-                        "model": result.model,
-                        "system": system,
-                        "user": user,
-                        "text": text,
-                        "input_tokens": result.input_tokens,
-                        "output_tokens": result.output_tokens,
-                        "cache_read_tokens": result.cache_read_tokens,
-                        "cache_creation_tokens": result.cache_creation_tokens,
-                        "cost_usd": result.cost_usd,
-                    },
-                    f,
-                    indent=2,
+
+class OpenAIClient(_BaseRealClient):
+    """OpenAI Chat Completions client.
+
+    OpenAI auto-caches on the backend for prompts ≥1024 tokens with stable
+    prefixes; ``cache_system`` is a no-op here (kept for API parity).
+    Usage fields expose ``prompt_tokens_details.cached_tokens`` which we
+    record.
+    """
+
+    def __init__(self, model: str = "gpt-4o-mini", **kwargs: Any) -> None:
+        try:
+            from openai import OpenAI  # type: ignore
+        except ImportError as e:  # pragma: no cover
+            raise RuntimeError("openai SDK not installed") from e
+        if not os.environ.get("OPENAI_API_KEY"):
+            raise RuntimeError("OPENAI_API_KEY not set")
+        super().__init__(model=model, **kwargs)
+        self._client = OpenAI()
+
+    def call(self, system: str, user: str, cache_system: bool = True) -> CallResult:
+        if self.total_cost >= self.cost_cap_usd:
+            raise RuntimeError(f"Cost cap ${self.cost_cap_usd:.2f} reached")
+        last_err = None
+        for attempt in range(self.max_retries):
+            try:
+                resp = self._client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    max_completion_tokens=self.max_tokens,
                 )
-
+                break
+            except Exception as e:  # pragma: no cover
+                last_err = e
+                time.sleep(2**attempt)
+        else:
+            raise RuntimeError(f"OpenAI call failed: {last_err}")
+        choice = resp.choices[0]
+        text = choice.message.content or ""
+        u = getattr(resp, "usage", None)
+        cached = 0
+        try:
+            details = getattr(u, "prompt_tokens_details", None)
+            if details is not None:
+                cached = getattr(details, "cached_tokens", 0) or 0
+        except Exception:
+            pass
+        result = CallResult(
+            text=text,
+            input_tokens=getattr(u, "prompt_tokens", 0) or 0,
+            output_tokens=getattr(u, "completion_tokens", 0) or 0,
+            cache_read_tokens=cached,
+            cache_creation_tokens=0,
+            model=self.model,
+            raw=resp,
+        )
+        result.cost_usd = estimate_cost(self.model, result)
+        self.total_cost += result.cost_usd
+        self.calls += 1
+        self._log(system, user, result)
         return result
 
 
 class MockClient:
-    """Deterministic offline client for tests and no-API-key local dev.
-
-    Returns a canned JSON explanation built from the provided evidence.
-    Lets the full pipeline, schema validation, and metric computation
-    run end-to-end without hitting the network.
-    """
+    """Deterministic offline client for tests and no-API-key local dev."""
 
     def __init__(
-        self, model: str = "mock-sonnet", cost_cap_usd: float = 10.0, log_dir=None, **_: Any
+        self, model: str = "mock", cost_cap_usd: float = 10.0, log_dir=None, **_: Any
     ) -> None:
         self.model = model
         self.cost_cap_usd = cost_cap_usd
@@ -167,14 +228,12 @@ class MockClient:
         self.log_dir = Path(log_dir) if log_dir else None
         if self.log_dir:
             self.log_dir.mkdir(parents=True, exist_ok=True)
-        self._canned_log: list[dict] = []
 
     def call(self, system: str, user: str, cache_system: bool = True) -> CallResult:
         self.calls += 1
         payload = json.loads(user) if user.strip().startswith("{") else {}
         stats = payload.get("per_action_stats", [])
         chosen = payload.get("chosen_action", 0)
-        # Pick the chosen action's stats and the best alternative.
         chosen_stats = next(
             (s for s in stats if s.get("action") == chosen), stats[0] if stats else {}
         )
@@ -222,13 +281,35 @@ class MockClient:
 
 def make_client(
     mock: bool | None = None,
-    model: str = "claude-sonnet-4-6",
+    model: str | None = None,
     cost_cap_usd: float = 10.0,
     log_dir: str | Path | None = None,
-) -> AnthropicClient | MockClient:
-    """Auto-select a real vs mock client based on env."""
+    provider: str | None = None,
+) -> AnthropicClient | OpenAIClient | MockClient:
+    """Auto-select a client based on env + explicit provider.
+
+    ``provider`` ∈ {"anthropic", "openai", None}. If None:
+      1. If ANTHROPIC_API_KEY set → Anthropic.
+      2. Elif OPENAI_API_KEY set → OpenAI.
+      3. Else mock.
+    """
     if mock is None:
-        mock = not os.environ.get("ANTHROPIC_API_KEY")
+        has_anth = bool(os.environ.get("ANTHROPIC_API_KEY"))
+        has_oai = bool(os.environ.get("OPENAI_API_KEY"))
+        mock = not (has_anth or has_oai)
+
     if mock:
-        return MockClient(model=f"mock-{model}", cost_cap_usd=cost_cap_usd, log_dir=log_dir)
-    return AnthropicClient(model=model, cost_cap_usd=cost_cap_usd, log_dir=log_dir)
+        return MockClient(
+            model=f"mock-{model or 'default'}", cost_cap_usd=cost_cap_usd, log_dir=log_dir
+        )
+
+    if provider is None:
+        provider = "openai" if os.environ.get("OPENAI_API_KEY") else "anthropic"
+
+    if provider == "anthropic":
+        default = "claude-sonnet-4-6"
+        return AnthropicClient(model=model or default, cost_cap_usd=cost_cap_usd, log_dir=log_dir)
+    if provider == "openai":
+        default = "gpt-4o-mini"
+        return OpenAIClient(model=model or default, cost_cap_usd=cost_cap_usd, log_dir=log_dir)
+    raise ValueError(f"Unknown provider: {provider}")

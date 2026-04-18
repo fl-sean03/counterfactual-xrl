@@ -22,6 +22,7 @@ dependencies:
       - minigrid==2.3.1
       - stable-baselines3==2.3.2
       - anthropic>=0.34.0
+      - openai>=1.40.0
       - tensorboard
       # Tooling
       - ruff==0.6.9

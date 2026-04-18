@@ -36,6 +36,7 @@ def main() -> None:
         model=gen_cfg["model"],
         cost_cap_usd=gen_cfg["cost_cap_usd"],
         log_dir=log_dir / "generator",
+        provider=cfg.get("provider"),
     )
 
     out_dir = Path(args.out_dir)

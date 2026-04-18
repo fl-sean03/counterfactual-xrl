@@ -1,14 +1,14 @@
+provider: openai   # "openai" | "anthropic" | null (auto-select)
+
 generator:
-  model: claude-sonnet-4-6
+  model: gpt-4o           # stronger model for generation
   max_tokens: 1024
   cost_cap_usd: 10.0
-  mock_if_no_api_key: true
 
 judge:
-  model: claude-haiku-4-5
-  max_tokens: 512
+  model: gpt-4o-mini      # smaller model for judging (same family, different size)
+  max_tokens: 128
   cost_cap_usd: 5.0
-  mock_if_no_api_key: true
 
 cache_dir: results/explanations/cache
 log_dir: results/explanations/logs
