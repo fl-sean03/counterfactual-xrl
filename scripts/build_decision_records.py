@@ -41,7 +41,6 @@ def obs_from_sim_factory(obs_mode: str):
         _w_cache: dict[int, Any] = {}
 
         def obs_fn(sim: Simulator) -> Any:
-            u = sim.env.unwrapped
             # Create a shim wrapper tied to the sim env the first time we see it.
             key = id(sim.env)
             w = _w_cache.get(key)
