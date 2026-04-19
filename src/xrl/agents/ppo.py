@@ -29,12 +29,12 @@ class PPOAgent:
         policy: str = "MlpPolicy",
         seed: int = 0,
         **ppo_kwargs: Any,
-    ) -> "PPOAgent":
+    ) -> PPOAgent:
         model = PPO(policy, env, seed=seed, verbose=0, **ppo_kwargs)
         return cls(model)
 
     @classmethod
-    def load(cls, path: str | Path, env=None) -> "PPOAgent":
+    def load(cls, path: str | Path, env=None) -> PPOAgent:
         model = PPO.load(str(path), env=env)
         return cls(model)
 

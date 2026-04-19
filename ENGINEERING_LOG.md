@@ -236,3 +236,50 @@ evidence correctly 93% of the time vs 44% for DQN. This is the
 headline result of the paper.
 
 **Next:** Final report polish, Phase 9 submission prep.
+
+## 2026-04-18, DQN failure root-cause audit
+
+**What:** Diagnosed why every DQN variant (image, symbolic, shaped)
+sat at <=1% success while MCTS solved the env perfectly. Two issues:
+(1) the image observation is `uint8` in [0, 255] with tiny integer
+indices (MiniGrid encodes `(obj_type, color, state)`), and SB3's
+`MlpPolicy` does not auto-normalize for non-image paths; (2) the
+raw reward structure makes a 0-reward stall a valid local optimum,
+because 0 per step dominates the expected -1 collision, so any
+risk-averse optimizer will settle into "do not move".
+**Why:** Needed before committing to "DQN is suboptimal per the RQ
+framing". It turns out the cause is specifically a model-free + sparse
++ adversarial-reward interaction, not a fundamental unsolvability.
+**Result:** Identified the concrete fixes needed. PPO is the
+recommended model-free agent for MiniGrid in the community, partly
+because its on-policy entropy bonus breaks these degenerate
+equilibria. Added `StepPenaltyWrapper` (flat -0.01 per non-terminal
+step, to make stall cost -2.56 over 256 steps) and an `RichSymbolicObsWrapper`
+with relative-offset features, as backup levers.
+
+## 2026-04-18, PPO training: RL now works
+
+**What:** Added `PPOAgent` (thin SB3 wrapper exposing `action_probs`
+for the explainer's metadata block). Trained 500k steps across 8
+parallel envs with symbolic obs + step_penalty 0.01 + standard PPO
+hyperparams (`n_steps=2048`, `ent_coef=0.01`, `net_arch=[128,128]`).
+Wall-clock 438 s on the RTX 5080.
+**Why:** DQN is stuck and does not produce a scientifically useful
+RL side to compare against. PPO is the known-good alternative.
+**Result:** Over 300 held-out episodes, PPO reaches **0.590 [0.537,
+0.643] success rate**, 0.410 collision rate, mean return +0.115, mean
+episode 24.5 steps. This is a 59x improvement over DQN's 0.010.
+**Next:** Rebuild decision records using PPO instead of DQN,
+regenerate the 270 explanations, rerun the metrics pipeline with the
+meaningfully-performing RL agent.
+
+## 2026-04-18, DQN-improved attempt (cut)
+
+**What:** Tried DQN with step-penalty + shaping + tuned hyperparams
+(LR 1e-4, buffer 100k, exp_frac 0.6).
+**Why:** Parallel fallback in case PPO also struggled.
+**Result:** Still ~0.7% success after 150k steps. Killed the run
+once PPO passed 50% on eval. DQN on this env simply does not work
+out of the box; RL community consensus.
+**Decision:** PPO replaces DQN in the comparison. The report's
+"deep RL" side is PPO, not DQN.

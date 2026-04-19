@@ -21,6 +21,7 @@ import minigrid  # noqa: F401
 
 from xrl.agents.dqn import DQNAgent
 from xrl.agents.mcts import MCTS, MCTSConfig
+from xrl.agents.ppo import PPOAgent
 from xrl.analysis.counterfactual import counterfactual_rollouts
 from xrl.analysis.records import DecisionRecord, save_record, validate_record_dict
 from xrl.analysis.tree_stats import mcts_root_to_action_stats
@@ -126,6 +127,72 @@ def build_dqn_records(
     return written
 
 
+def build_ppo_records(
+    agent_id: str,
+    run_dir: Path,
+    seeds: list[int],
+    n_per_action: int,
+    out_dir: Path,
+    max_steps_per_traj: int = 20,
+    rollout_cap: int = 50,
+) -> int:
+    with open(run_dir / "meta.json") as f:
+        meta = json.load(f)
+    obs_mode = meta["obs_mode"]
+    ppo = PPOAgent.load(run_dir / "model.zip")
+    obs_fn = obs_from_sim_factory(obs_mode)
+
+    def policy_predict(obs):
+        return ppo.predict(obs)
+
+    written = 0
+    for seed in seeds:
+        # For evaluation fairness, record-building uses the *base* reward env
+        # (no shaping / step penalty). The policy still acts the same; only
+        # the recorded returns reflect the clean task reward.
+        env = make_env(mode=obs_mode, seed=seed)
+        obs, _ = env.reset(seed=seed)
+        step = 0
+        terminated = False
+        truncated = False
+        while not (terminated or truncated) and step < max_steps_per_traj:
+            sim = Simulator.from_env(env)
+            stats = counterfactual_rollouts(
+                sim,
+                policy_predict,
+                obs_fn,
+                n_per_action=n_per_action,
+                seed=seed * 1000 + step,
+                max_steps=rollout_cap,
+            )
+            sim.close()
+            action = ppo.predict(obs)
+            u = env.unwrapped
+            rec = DecisionRecord(
+                source="dqn_rollout",  # schema-compatible "rollout" source
+                agent_id=agent_id,
+                state_id=f"{seed}:{step}",
+                step=step,
+                agent_pos=tuple(int(x) for x in u.agent_pos),
+                agent_dir=int(u.agent_dir),
+                obstacle_positions=[tuple(int(x) for x in p) for p in obstacle_positions(env)],
+                chosen_action=int(action),
+                per_action_stats=stats,
+                agent_metadata={
+                    "action_probs": ppo.action_probs(obs).tolist(),
+                    "policy": "PPO",
+                },
+            )
+            d = rec.to_dict()
+            validate_record_dict(d)
+            save_record(rec, out_dir / agent_id / f"seed{seed}_step{step:03d}.json")
+            written += 1
+            obs, _, terminated, truncated, _ = env.step(int(action))
+            step += 1
+        env.close()
+    return written
+
+
 def build_mcts_records(
     agent_id: str,
     mcts_cfg_path: str,
@@ -181,6 +248,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dqn-run-dir", help="DQN run directory with model.zip + meta.json")
     ap.add_argument("--dqn-agent-id", default=None)
+    ap.add_argument("--ppo-run-dir", help="PPO run directory with model.zip + meta.json")
+    ap.add_argument("--ppo-agent-id", default=None)
     ap.add_argument("--mcts-config", help="Path to MCTS config")
     ap.add_argument("--mcts-agent-id", default="mcts_baseline")
     ap.add_argument("--seeds", type=int, nargs="+", required=True)
@@ -207,6 +276,19 @@ def main() -> None:
             rollout_cap=args.rollout_cap,
         )
         print(f"DQN: wrote {n} records to {out_dir / aid}")
+
+    if args.ppo_run_dir:
+        aid = args.ppo_agent_id or "ppo_baseline"
+        n = build_ppo_records(
+            aid,
+            Path(args.ppo_run_dir),
+            args.seeds,
+            args.n_per_action,
+            out_dir,
+            max_steps_per_traj=args.max_steps,
+            rollout_cap=args.rollout_cap,
+        )
+        print(f"PPO: wrote {n} records to {out_dir / aid}")
 
     if args.mcts_config:
         n = build_mcts_records(
