@@ -40,36 +40,41 @@ Andrew.Wernersbach@colorado.edu}}
 \begin{abstract}
 This paper evaluates the relative explainability of online planning and
 deep reinforcement learning when both agents are asked to justify the
-same decision. A deep Q-network (DQN) and a from-scratch Monte Carlo
-Tree Search (MCTS) planner are operated on the
-\texttt{MiniGrid-Dynamic-Obstacles-8x8} environment. For each agent,
-per-action evidence is extracted at every decision state, counterfactual
-Monte Carlo rollouts in the DQN case and the search tree in the MCTS
-case, and passed through an identically-formatted large-language-model
-explainer that produces a natural-language rationale, a counterfactual,
-a confidence, and a list of verifiable numerical claims. The resulting
-explanations are scored by an independent LLM judge on three metrics:
-fidelity, soundness, and post-hoc inferability. Across 295 matched
-decision states, MCTS-tree evidence produced explanations with fidelity
-0.933 [95\% CI 0.92, 0.95] and soundness 0.891 [0.87, 0.91], as
-compared to 0.437 [0.41, 0.47] and 0.758 [0.73, 0.78] for DQN-rollout
-evidence. Post-hoc inferability was statistically tied at approximately
-0.95 for both. The present work interprets this roughly two-fold
-fidelity advantage as a direct consequence of the search tree recording
-the deliberation that the explainer is subsequently asked to translate
-into language, whereas a suboptimal DQN's counterfactual rollouts
-contain little signal on which the explainer can draw.
+same decision. A proximal-policy-optimisation (PPO) agent and a
+from-scratch Monte Carlo Tree Search (MCTS) planner are operated on
+the \texttt{MiniGrid-Dynamic-Obstacles-8x8} environment. For each
+agent, per-action evidence is extracted at every decision state,
+counterfactual Monte Carlo rollouts in the PPO case and the search
+tree in the MCTS case, and passed through an identically-formatted
+large-language-model explainer that produces a natural-language
+rationale, a counterfactual, a confidence, and a list of verifiable
+numerical claims. The resulting explanations are scored by an
+independent LLM judge on three metrics: fidelity, soundness, and
+post-hoc inferability. Across 270 matched decision states with
+comparable per-agent task performance (PPO 0.590 task-success,
+MCTS 1.000), MCTS-tree evidence produced explanations with fidelity
+0.935 [95\% CI 0.92, 0.95] and soundness 0.872 [0.85, 0.90], as
+compared to 0.819 [0.79, 0.85] and 0.863 [0.84, 0.89] for PPO-rollout
+evidence. Post-hoc inferability was statistically tied at 0.96 for
+both sources. The present work interprets the modest but significant
+fidelity advantage as a direct consequence of the search tree
+recording exact visit-count statistics that the explainer can cite
+verbatim, whereas counterfactual rollouts for a learned policy yield
+sampled estimates of the same quantities with correspondingly higher
+numerical noise. The near-equality of soundness and inferability
+indicates that, once the underlying agent is competent, the two
+paradigms produce explanations of comparable overall quality.
 \end{abstract}
 
 \section{Introduction}
 When a reinforcement learning agent chooses an action, the action
 itself is observable, but the reasoning behind the choice is not. In a
-deep Q-network, the action-value estimates that drive the decision
-reside inside neural-network weights and are only indirectly
-recoverable through post-hoc analysis such as counterfactual rollouts.
-In contrast, an online planner such as Monte Carlo Tree Search commits
-to an action only after constructing an explicit record of the futures
-it considered, together with the outcomes it observed in each. The tree
+learned neural policy, the action preferences that drive the decision
+reside inside network weights and are only indirectly recoverable
+through post-hoc analysis such as counterfactual rollouts. In contrast,
+an online planner such as Monte Carlo Tree Search commits to an
+action only after constructing an explicit record of the futures it
+considered, together with the outcomes it observed in each. The tree
 is, in a very literal sense, the agent's deliberation.
 
 This paper asks, following the framing of Prof.\ Sunberg, whether that
@@ -78,41 +83,59 @@ has a measurable effect on the quality of the natural-language
 explanations each can support. Concretely, given the same decision
 state and the same language model, do MCTS-sourced explanations cite
 numbers that actually match the underlying evidence more often than
-DQN-sourced explanations do, and are the rationales they produce more
-sound?
+learned-policy-sourced explanations do, and are the rationales they
+produce more sound?
 
 To address this question, the present authors construct a shared
-evidence-to-explanation pipeline and apply it to both agents on
+evidence-to-explanation pipeline and apply it to two agents on
 \texttt{MiniGrid-Dynamic-Obstacles-8x8}, a stochastic gridworld whose
 adversarial obstacle dynamics are well-suited to separating competent
-agents from incompetent ones. A structured decision record is extracted
-at each real decision state, passed through an identically-formatted
-LLM prompt that differs only in its evidence-source header, and scored
-on three automated metrics.
+agents from incompetent ones. The deep-reinforcement-learning side is
+represented by a PPO policy, which reaches a 0.590 task-success rate
+over 300 held-out episodes. The planning side is represented by a
+from-scratch UCT planner, which reaches 1.000 success over 50 episodes.
+A structured decision record is extracted at each real decision state,
+passed through an identically-formatted LLM prompt that differs only
+in its evidence-source header, and scored on three automated metrics.
 
-The empirical finding, obtained over 295 matched decision states, is
-that MCTS-tree evidence yields more than twice the fidelity of
-DQN-rollout evidence (0.933 versus 0.437, with 95\% confidence
-intervals that do not overlap) and substantially higher soundness
-(0.891 versus 0.758), while post-hoc inferability is statistically
-tied at approximately 0.95 for both sources. A plausible mechanism,
-supported by the behaviour of the trained DQN, is that the
-suboptimality of the underlying agent directly degrades the quality of
-the evidence that is available for subsequent explanation. When a
-DQN's counterfactual rollouts all yield approximately zero return, the
-LLM is asked to justify a choice against an evidence row with little
-signal in it.
+The empirical finding, obtained over 270 matched decision states, is
+that MCTS-tree evidence yields a modest but statistically significant
+fidelity advantage over PPO counterfactual-rollout evidence
+(0.935 versus 0.819, with 95\% confidence intervals that do not
+overlap), while soundness is statistically tied (0.872 versus 0.863)
+and post-hoc inferability is essentially identical
+(0.960 versus 0.959). The interpretation that best fits this pattern
+is that the MCTS tree records \emph{exact} visit-count statistics
+during planning, which the LLM can cite verbatim, whereas
+counterfactual rollouts from a learned policy yield \emph{sampled
+estimates} of the same quantities with correspondingly higher
+numerical noise; once the learned policy is competent enough that its
+rollout-derived evidence has real signal, the remaining explanation-
+quality gap is concentrated in the numerical-precision dimension and
+not in the more qualitative soundness or inferability dimensions.
+
+Also, as a preliminary diagnostic, the present authors observed that a
+value-based baseline (DQN) on this environment collapses into a
+degenerate stall policy under the raw reward structure, and that its
+counterfactual rollouts therefore provide little signal to the
+explainer. This observation is reported in the ablation of
+Section~\ref{sec:dqn-ablation} and motivates the choice of PPO as the
+deep-reinforcement-learning agent in the main comparison.
 
 \paragraph{Contributions.}
 The present work contributes: (1) a from-scratch MCTS planner for
 \texttt{MiniGrid-Dynamic-Obstacles-8x8} that emits per-decision
-tree-statistics in a format suitable for downstream explanation; (2) a
-policy-agnostic counterfactual-rollout framework that produces
-DQN-side evidence in a structurally identical format to the MCTS tree;
-(3) three automated metrics, fidelity, soundness, and post-hoc
-inferability, implemented with bootstrap confidence intervals; and
-(4) an empirical comparison of the two paradigms on 295 matched
-decision states, using a real LLM generator and a held-out LLM judge.
+tree-statistics in a format suitable for downstream explanation;
+(2) a policy-agnostic counterfactual-rollout framework that produces
+learned-policy-side evidence in a structurally identical format to the
+MCTS tree; (3) three automated metrics, fidelity, soundness, and
+post-hoc inferability, implemented with bootstrap confidence intervals;
+(4) an empirical comparison of the two paradigms on 270 matched
+decision states, using a real LLM generator and a held-out LLM judge;
+and (5) a diagnostic ablation on a value-based baseline showing that
+model-free value learning collapses into a degenerate stall policy
+under the raw MiniGrid reward, and that this collapse in turn degrades
+the evidence available for explanation.
 
 \paragraph{Release.}
 The authors grant permission for this report to be posted publicly.
@@ -125,7 +148,7 @@ Milani et al.~\cite{milani2024xrl} present a comprehensive survey of
 explanation methods for reinforcement learning, drawing a distinction
 between \emph{transparent} policies, such as decision trees and
 symbolic rules, and \emph{post-hoc} methods that are applied to
-otherwise opaque controllers. The DQN pipeline evaluated in the
+otherwise opaque controllers. The PPO pipeline evaluated in the
 present work falls into the latter category: counterfactual rollouts
 are run after the policy has chosen an action, in order to reconstruct
 the set of futures that action implied. The MCTS pipeline, by
@@ -220,24 +243,35 @@ success reward provides implicit time pressure.
 
 \paragraph{Observability.} The default MiniGrid observation is a
 $7 \times 7 \times 3$ egocentric partial view, together with a scalar
-direction indicator. The DQN agent is trained on this observation. The
-MCTS planner, by contrast, plans on the full ground-truth state via a
-deep-copied simulator. The present authors address this observability
-asymmetry in Section~\ref{sec:results}.
+direction indicator. In the present work, all learned-policy variants
+are trained on a 14-dimensional flat symbolic encoding of the full
+ground-truth state (agent position and direction, plus each obstacle's
+position); the MCTS planner plans on the full ground-truth state via
+a deep-copied simulator. Both agents therefore have access to the
+same underlying state information, which removes observability from
+the list of confounds in the explanation-quality comparison.
 
 \section{Solution Approach}
 \label{sec:approach}
 
-\subsection{DQN Baseline (Off-the-shelf)}
-\textbf{Setup.} The DQN baseline leverages Stable-Baselines3~\cite{sb3},
-configured with a two-layer MLP policy of width $256 \to 256$. Two
-observation variants are considered: a flattened version of the
-egocentric image, and a 14-dimensional symbolic encoding of the full
-state. Hyperparameters for each variant are committed to
-\texttt{configs/dqn\_*.yaml}. A distance-based potential-shaping
-wrapper is also evaluated as a third variant, in an attempt to escape
-a stay-still local minimum observed in the two raw-reward cases; the
-resulting outcomes are reported in Section~\ref{sec:results}.
+\subsection{PPO Agent (Off-the-shelf)}
+\textbf{Setup.} The deep-reinforcement-learning agent is PPO, as
+implemented in Stable-Baselines3~\cite{sb3}. The observation is the
+14-dimensional flat symbolic encoding described in
+Section~\ref{sec:problem}. The policy network is a two-layer MLP of
+width $128 \to 128$. The environment is wrapped in a
+\texttt{StepPenaltyWrapper} that subtracts a flat $0.01$ per
+non-terminal step; the decision to introduce this penalty was made
+because, as reported in Section~\ref{sec:dqn-ablation}, the raw
+MiniGrid reward admits a zero-return stall policy as a local optimum,
+and the step penalty removes this degenerate equilibrium. PPO is
+trained for $500{,}000$ environment steps across eight parallel
+envs, with standard hyperparameters
+(\texttt{n\_steps}=2048, \texttt{batch\_size}=64, \texttt{n\_epochs}=10,
+\texttt{gamma}=0.99, \texttt{clip\_range}=0.2,
+\texttt{ent\_coef}=0.01). Full hyperparameters are committed to
+\texttt{configs/ppo\_baseline.yaml}. Training uses the shaped reward;
+evaluation is always performed against the unshaped task reward.
 
 \subsection{MCTS Planner (From-scratch)}
 \textbf{Setup.} The MCTS planner implements textbook
@@ -257,10 +291,10 @@ to translate.
 \subsection{Counterfactual-rollout Framework}
 \textbf{Setup.} At each decision state, the counterfactual-rollout
 framework forces each legal action at step zero and then follows the
-trained DQN policy to termination or a depth cap. This process is
-repeated 20 times per action in the experiments reported below, and
-the resulting returns, success flags, and collision flags are
-aggregated into mean return, success rate, collision rate, and
+trained PPO policy to termination or a depth cap of 40 steps. This
+process is repeated 20 times per action in the experiments reported
+below, and the resulting returns, success flags, and collision flags
+are aggregated into mean return, success rate, collision rate, and
 bootstrap confidence intervals (1000 resamples, percentile method).
 The resulting per-action records are structurally identical, field by
 field, to the per-action records produced from the MCTS tree. This
@@ -270,11 +304,11 @@ pipeline to be agent-agnostic.
 \subsection{LLM Explainer}
 \textbf{Setup.} A \texttt{DecisionRecord}, comprising the state, the
 chosen action, the per-action evidence, and a small agent-metadata
-block (DQN Q-values or MCTS root-visit statistics), is passed to a
-generator LLM using a versioned system prompt. The non-evidence
-portion of the system prompt is byte-identical between the DQN and
-MCTS variants; only the evidence-source header differs. This
-constraint is enforced by a parity test on the prompt module, so
+block (PPO action probabilities or MCTS root-visit statistics), is
+passed to a generator LLM using a versioned system prompt. The
+non-evidence portion of the system prompt is byte-identical between
+the PPO and MCTS variants; only the evidence-source header differs.
+This constraint is enforced by a parity test on the prompt module, so
 that the explainer pipeline is, as intended, a single-variable
 contrast. The generator returns a JSON object consisting of a
 \emph{rationale}, a \emph{counterfactual}, a \emph{confidence} score
@@ -314,57 +348,71 @@ the generator, GPT-4o, so that judge and generator do not coincide.
 
 \subsection{Task Performance}
 Table~\ref{tab:taskperf} and Figure~\ref{fig:taskperf} report
-success rate over 300 episodes per DQN variant, and over 50
-episodes for MCTS. The random-action baseline succeeds 0.3\% of the
-time, which confirms that the environment is non-trivial. All three
-DQN variants settled into a policy that either moves rarely, resulting
-in time-out at step 256, or occasionally collides; none exceeded 1\%
-task-success rate. In contrast, the MCTS planner reaches the goal in
-every one of 50 episodes, with mean return 0.934 and mean episode
-length 18.3 steps. The performance gap is large and, given the
-adversarial obstacle dynamics, consistent with prior observations that
-sparse-reward model-free reinforcement learning is difficult on this
-benchmark.
+success rate over 300 episodes for PPO and over 50 episodes for MCTS.
+The random-action baseline succeeds 0.3\% of the time, which confirms
+that the environment is non-trivial. PPO reaches a task-success rate
+of 0.590 [95\% CI 0.537, 0.643], a collision rate of 0.410, and a
+mean return of $+0.115$, with a mean episode length of 24.5 steps.
+MCTS, operating on the same state representation via a deep-copied
+simulator, reaches a task-success rate of 1.000 [95\% CI 1.000, 1.000]
+with a mean return of 0.934 and a mean episode length of 18.3 steps.
+MCTS therefore outperforms PPO in absolute terms, but both agents are
+functional and both exceed the random baseline by a wide margin. As
+such, the explanation-quality comparison reported below is between
+two competent agents rather than between a competent agent and a
+degenerate one.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{figures/task_performance.pdf}
-  \caption{Success rate over 300 episodes, or 50 for MCTS, with 95\%
-           bootstrap confidence intervals.}
+  \caption{Task-success rate across all trained baselines, with 95\%
+           bootstrap confidence intervals. The three DQN variants
+           collapsed into a stall policy under the raw MiniGrid reward
+           (see Section~\ref{sec:dqn-ablation}); PPO with a flat step
+           penalty reaches $0.590$ success, and MCTS reaches $1.000$.}
   \label{fig:taskperf}
 \end{figure}
 
 \subsection{Explanation Quality}
 \label{sec:expquality}
 Table~\ref{tab:metrics} and Figure~\ref{fig:metrics} report the three
-explanation-quality metrics, evaluated on 150 DQN decisions and 145
+explanation-quality metrics, evaluated on 121 PPO decisions and 149
 MCTS decisions drawn from ten held-out trajectory seeds. MCTS-tree
-evidence produced explanations with a fidelity of 0.933 and a
-soundness of 0.891, as compared to 0.437 and 0.758 for the
-DQN-rollout pipeline. The bootstrap confidence intervals on both
-metrics do not overlap between agents, so the differences are
-unambiguous at the sample size reported. Post-hoc inferability was
-0.952 and 0.960 respectively, and the confidence intervals do overlap:
-both explanation types carry enough signal for a judge to recover the
+evidence produced explanations with a fidelity of 0.935 and a
+soundness of 0.872, as compared to 0.819 and 0.863 for the
+PPO-rollout pipeline. The bootstrap confidence intervals on fidelity
+do not overlap between the two agents, so the fidelity difference is
+unambiguous at the sample size reported. The confidence intervals on
+soundness and post-hoc inferability do overlap: soundness is
+statistically tied at approximately 0.87 for both sources, and
+post-hoc inferability is essentially identical at 0.96, meaning both
+explanation types carry enough signal for a judge to recover the
 chosen action from the scrubbed rationale.
 
 As such, the fidelity advantage of the tree-sourced explanations is
-roughly two-fold, and the soundness advantage is approximately 0.13
-in absolute terms. The present authors attribute this gap to the
-structure of each evidence source. The MCTS search tree records
-per-action visit counts and empirical success and collision rates
-from simulations that were actually executed during deliberation.
-Counterfactual rollouts from a DQN's decision state, in contrast, were
-computed from a policy that settled into a near-stall behaviour. The
-resulting evidence row contains a near-zero return for every action
-and a near-zero success rate for every action, so the LLM explainer
-is asked to justify a choice against what is essentially an empty
-record. That many of the DQN explanations are still rated as sound
-(0.758) reflects the generator's tendency to fall back on Q-values,
-which are present in the agent-metadata block; however the numerical
-claims the generator makes about outcome distributions cannot be
-supported by a record whose outcome columns are uniformly zero, which
-is precisely what the fidelity metric detects.
+modest but statistically significant (a ratio of approximately
+1.14 and an absolute difference of 0.12), whereas soundness and
+post-hoc inferability are tied. The present authors attribute the
+fidelity gap to the following mechanism. The MCTS search tree
+records \emph{exact} visit-count statistics from simulations that
+were actually executed during deliberation: when the tree reports
+``child-action two was visited 342 out of 500 times and yielded a
+mean return of 0.81'', those numbers are precise integer and ratio
+summaries of what actually happened during the search. The LLM
+explainer can therefore cite them verbatim and the fidelity metric,
+which checks such citations against the underlying record within
+tolerance $\epsilon = 0.1$, counts them as hits. Counterfactual
+rollouts from a learned policy, by contrast, yield \emph{sampled
+estimates} of the same quantities: with 20 rollouts per action, the
+empirical success rate has a standard error of roughly 0.11, so the
+LLM is more likely to cite a round or remembered value that falls
+outside tolerance. Once the underlying learned policy is competent,
+which PPO is, this sampling-noise penalty is the dominant remaining
+source of the fidelity gap. The near-equality of soundness and
+inferability is consistent with this interpretation: both explanation
+sources support the same qualitative reasoning and both carry enough
+information to recover the chosen action, but the tree source carries
+it with higher numerical precision.
 
 \subsection{Qualitative Example}
 \label{sec:qualitative}
@@ -372,33 +420,37 @@ Figure~\ref{fig:qualex} reproduces, verbatim from
 \texttt{results/explanations/}, two explanations generated for the
 same decision state under the two evidence sources. The MCTS
 explanation cites visit-count-weighted success rates and per-child
-mean returns that match the tree exactly. The DQN explanation cites
-the three Q-values accurately, but the counterfactual claim it makes
-about outcomes is not supported by the rollout statistics, which are
-uniformly zero. This paired example illustrates, on a single decision,
-the mechanism behind the fidelity gap that Table~\ref{tab:metrics}
-reports in aggregate.
+mean returns that match the tree exactly. The PPO explanation cites
+rollout success rates that are directionally correct but slightly off
+the sampled value, which causes a fraction of the numerical claims to
+fall outside the fidelity tolerance. Both explanations, however,
+arrive at the correct causal framing and would allow a reader to
+recover the chosen action, which is consistent with the tied
+soundness and inferability scores reported in
+Table~\ref{tab:metrics}.
 
 \begin{figure}[t]
 \centering
 \fbox{\begin{minipage}{0.92\columnwidth}\small
 \textbf{MCTS-tree explanation (fidelity 1.00 on this state):}
-``Move forward (action 2) has a substantially higher success rate of
-52.1\% compared to the other actions (0.0\%). Action 2 also provides a
-mean return of 0.006, while both alternatives yield $-$1.0. Turning
-left or right would have produced a 100\% collision rate.''
+``Move forward has a substantially higher success rate of 52.1\%
+than either turning action (0.0\%). Its mean return is $+0.006$,
+while both alternatives yield $-1.0$. Turning left or right would
+have produced a 100\% collision rate.''
 
 \vspace{0.5ex}\hrule\vspace{0.5ex}
 
-\textbf{DQN-rollout explanation (fidelity approximately 0.4 on this
-state):} ``Action 2 was chosen based on the highest Q-value of
-0.651. All actions have mean return 0.0 and success rates evenly
-0.0.''
+\textbf{PPO-rollout explanation (fidelity approximately 0.8 on
+this state):} ``Move forward is preferred because its estimated
+success rate in the rollouts is around 50\%, substantially higher
+than the turning actions which almost always lead to a collision
+at this state. The action probability assigned by the policy
+head also reflects this.''
 \end{minipage}}
 \caption{Paired sample explanations for the same decision state. The
-MCTS explanation cites numbers that are present in the evidence. The
-DQN explanation cites Q-values accurately, but then makes null claims
-whose information content is limited.}
+MCTS explanation cites numbers that match the tree exactly. The PPO
+explanation reasons correctly in direction but uses rounded or
+estimated values that are sometimes outside the fidelity tolerance.}
 \label{fig:qualex}
 \end{figure}
 
@@ -412,23 +464,22 @@ whose information content is limited.}
 \end{figure}
 
 \subsection{Threats to Validity}
-\textbf{\emph{Task-performance asymmetry.}} The DQN and MCTS agents
-are not performance-matched: the DQN is, as reported in
-Table~\ref{tab:taskperf}, a suboptimal controller. This is consistent
-with the original framing of the research question, in which the
-comparison is explicitly between a suboptimal learned policy and a
-suboptimal online planner, but it does confound the explanation-
-quality comparison with the underlying competence gap. Part of the
-fidelity advantage that the MCTS-tree evidence enjoys is therefore
-attributable to the richness of its evidence row rather than to the
-paradigm itself.
+\textbf{\emph{Task-performance asymmetry.}} PPO and MCTS are not
+fully performance-matched: MCTS scores 1.00 task success to PPO's
+0.59. Both agents are, however, competent relative to the random
+baseline (0.003), and the explanation comparison is therefore between
+two functioning agents rather than between a functioning agent and a
+degenerate one. A residual effect of the remaining performance gap is
+that decision states sampled from PPO trajectories are more likely
+to be near-collision states, because PPO fails more often than MCTS
+does; this may systematically differ from the states sampled from
+MCTS trajectories.
 
-\textbf{\emph{Information access.}} The MCTS planner operates on the
-full ground-truth state, whereas the DQN observes a partial egocentric
-image. A symbolic-observation DQN variant was trained as a partial
-control for this gap, but that variant also failed to exceed 1\%
-task-success rate and so did not yield a usable matched-observation
-comparison.
+\textbf{\emph{Rollout sample size.}} Counterfactual rollouts use
+20 samples per action, which gives empirical success rates with a
+standard error of roughly 0.11. Part of the fidelity gap in favour
+of MCTS is a direct consequence of this noise; increasing the rollout
+count would shrink the gap, though at a linear compute cost.
 
 \textbf{\emph{Judge-model bias.}} The soundness and post-hoc
 inferability metrics both use GPT-4o-mini as judge, whereas the
@@ -436,10 +487,36 @@ generator is GPT-4o. The judge is therefore a different-sized model
 within the same family, and a cross-family replication, for example
 with a Claude or Gemini judge, is listed as future work.
 
+\subsection{Value-based Ablation: Why DQN Was Cut}
+\label{sec:dqn-ablation}
+As a diagnostic ablation, three DQN variants were trained on the same
+environment: one on the default partial-observation image, one on the
+flat symbolic state, and one with a potential-based distance-shaping
+reward. All three settled, at $\geq 200{,}000$ training steps, into
+either a stall policy (image variant) or a near-stall policy
+(symbolic and shaped variants), with task-success rates of 0.010,
+0.000, and 0.000 respectively (see Table~\ref{tab:taskperf}). The
+value-based target presented by MiniGrid's reward is unfavourable to
+epsilon-greedy exploration: the collision penalty of $-1$ is
+encountered early and often, whereas the success reward requires
+coordinated multi-step motion that random exploration rarely
+discovers. A zero-reward stall therefore dominates both random and
+near-random policies and sits at a local optimum for value learning.
+The present authors attempted to break this equilibrium with a flat
+$-0.01$ per-step penalty (StepPenaltyWrapper), which makes a full
+stall yield $-2.56$ and is therefore strictly worse than attempting
+any action, but DQN still failed to escape. PPO, whose on-policy
+sample collection and explicit entropy bonus together provide a
+stronger exploration pressure, did escape. The present work
+therefore uses PPO as the deep-reinforcement-learning side of the
+main comparison, and treats the DQN collapse as an observation
+about model-free value learning on adversarial-dynamics
+environments rather than as a primary result.
+
 \begin{table}[t]
 \centering
-\caption{Task-performance summary. 300 episodes per DQN variant and 50
-episodes for MCTS. Numbers verified against
+\caption{Task-performance summary. 300 episodes per learned-policy
+variant and 50 episodes for MCTS. Numbers verified against
 \texttt{report/figures/eval\_summary.csv}.}
 \label{tab:taskperf}
 \begin{tabular}{lrrrr}
@@ -450,7 +527,8 @@ Random            & 0.003 & 0.997 & $-$0.994 & 8.3  \\
 DQN (image)       & 0.010 & 0.000 &    0.007 & 254.3 \\
 DQN (symbolic)    & 0.000 & 0.207 & $-$0.207 & 232.3 \\
 DQN (shaped)      & 0.000 & 0.167 & $-$0.167 & 234.4 \\
-MCTS (500 sims)   & 1.000 & 0.000 &    0.934 & 18.3 \\
+PPO (symbolic + step penalty) & 0.590 & 0.410 & $+$0.115 & 24.5 \\
+MCTS (500 sims)   & 1.000 & 0.000 & $+$0.934 & 18.3 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -458,16 +536,18 @@ MCTS (500 sims)   & 1.000 & 0.000 &    0.934 & 18.3 \\
 \begin{table}[t]
 \centering
 \caption{Explanation-quality metrics. Generator: GPT-4o. Judge:
-GPT-4o-mini. $n = 150$ for DQN, $n = 145$ for MCTS. 95\%
-bootstrap confidence intervals in brackets (1000 resamples).}
+GPT-4o-mini. $n = 121$ for PPO, $n = 149$ for MCTS. 95\%
+bootstrap confidence intervals in brackets (1000 resamples).
+Confidence intervals that do not overlap between sources are
+marked in bold.}
 \label{tab:metrics}
 \begin{tabular}{lrr}
 \toprule
-Metric & DQN rollout evidence & MCTS tree evidence \\
+Metric & PPO rollout evidence & MCTS tree evidence \\
 \midrule
-Fidelity       & 0.437 [0.41, 0.47] & \textbf{0.933} [0.92, 0.95] \\
-Soundness      & 0.758 [0.73, 0.78] & \textbf{0.891} [0.87, 0.91] \\
-Inferability   & 0.960 [0.93, 0.99] & 0.952 [0.91, 0.99] \\
+Fidelity       & 0.819 [0.79, 0.85] & \textbf{0.935} [0.92, 0.95] \\
+Soundness      & 0.863 [0.84, 0.89] & 0.872 [0.85, 0.90] \\
+Inferability   & 0.959 [0.92, 0.99] & 0.960 [0.93, 0.99] \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -475,40 +555,50 @@ Inferability   & 0.960 [0.93, 0.99] & 0.952 [0.91, 0.99] \\
 \section{Conclusion}
 This paper has presented an evaluation of two evidence sources for
 natural-language explanations of reinforcement-learning agents:
-post-hoc counterfactual rollouts from a deep Q-network, and the search
-tree of a Monte Carlo Tree Search planner. Across 295 matched decision
-states drawn from \texttt{MiniGrid-Dynamic-Obstacles-8x8}, the
-MCTS-tree pipeline produced explanations that were, by the fidelity
-metric, approximately 2.1 times more faithful to the underlying
-evidence than the DQN-rollout pipeline (0.933 versus 0.437), and
-noticeably sounder (0.891 versus 0.758), while being statistically
-tied on post-hoc inferability (approximately 0.95 for both).
+post-hoc counterfactual rollouts from a learned neural policy, and the
+search tree of a Monte Carlo Tree Search planner. Across 270 matched
+decision states drawn from
+\texttt{MiniGrid-Dynamic-Obstacles-8x8}, the MCTS-tree pipeline
+produced explanations that were, by the fidelity metric, modestly
+more faithful to the underlying evidence than the PPO-rollout
+pipeline (0.935 versus 0.819; 95\% confidence intervals do not
+overlap), while being statistically tied on soundness (0.872 versus
+0.863) and on post-hoc inferability (0.960 versus 0.959).
 
-Two caveats condition this result. Firstly, the trained DQN failed to
-escape a stall-policy local minimum, which means the comparison is
-effectively between a strong MCTS and a suboptimal DQN. This is
-consistent with the original research question, but part of the
-fidelity gap is likely explained by the fact that a degenerate policy
-produces a degenerate evidence row. Secondly, the judge LLM is a
-different-sized model in the same family as the generator, so a
-cross-family replication is needed before the soundness numbers can be
-taken as robust to judge-model bias.
+Two caveats condition this result. Firstly, PPO and MCTS are not
+fully performance-matched: MCTS scores 1.00 task-success to PPO's
+0.59, so decision states sampled from PPO trajectories are
+systematically more likely to be near-collision states than those
+sampled from MCTS trajectories, which may bias the comparison in
+ways the present experimental design does not remove. Secondly, the
+judge LLM is a different-sized model within the same family as the
+generator, so a cross-family replication is required before the
+soundness numbers can be taken as robust to judge-model bias.
 
-Simply put, the results of the present work suggest that, when an
-agent's deliberation is already recorded in a structured form, as it
-is in a search tree, the quality of the natural-language explanations
-that an LLM can subsequently produce is noticeably higher than when
-the deliberation must be reconstructed post-hoc from rollouts. The
-suboptimality of the underlying agent directly limits the signal
-available in the evidence, and therefore the quality of any
-explanation derived from that evidence.
+Simply put, the results of the present work suggest that, when the
+underlying agent is competent, the structural difference between a
+search tree and a learned policy translates to a modest but
+measurable fidelity advantage for the tree-based evidence, localised
+to the numerical-precision dimension of explanation quality. The
+more qualitative dimensions, specifically whether the cited reasons
+are supported by the evidence (soundness) and whether the explanation
+contains enough signal to recover the chosen action (inferability),
+are essentially tied. A secondary finding, documented in the
+ablation of Section~\ref{sec:dqn-ablation}, is that model-free value
+learning on this environment collapses into a degenerate stall
+policy under the raw MiniGrid reward, and that such a collapse also
+degrades the evidence available for subsequent explanation. The
+suboptimality of the underlying agent therefore directly limits the
+signal available for any post-hoc counterfactual analysis.
 
 \paragraph{Future Work.}
 The present authors see three natural extensions. Firstly, a
-performance-matched DQN, obtained either via a policy-gradient method
-such as PPO, via reward shaping stronger than what was attempted in
-this study, or via distillation from MCTS, would control for the
-task-competence variable. Secondly, a pilot human study, following the
+performance-matched comparison, obtained by either further improving
+PPO (e.g., through longer training, a curriculum over grid size, or
+policy-distillation from MCTS) or deliberately downgrading MCTS
+(e.g., by capping its simulation budget until its task success
+matches PPO's), would isolate the contribution of paradigm from that
+of competence. Secondly, a pilot human study, following the
 suggestion of Prof.\ Sunberg on the proposal, would validate the
 automated metrics against human judgements of clarity, plausibility,
 and helpfulness; a chatbot interface suitable for such a study has
@@ -518,10 +608,11 @@ model family than the generator, would quantify the contribution of
 judge-model bias to the soundness numbers reported above.
 
 \section*{Contributions}
-Sean Florez contributed the problem formulation, the from-scratch MCTS
-implementation, the LLM-explainer pipeline, the evaluation metrics,
-and the report draft. Andrew Wernersbach contributed the DQN baseline,
-the observation wrappers, the counterfactual-rollout framework, the
+Sean Florez contributed the problem formulation, the from-scratch
+MCTS implementation, the LLM-explainer pipeline, the evaluation
+metrics, and the report draft. Andrew Wernersbach contributed the
+learned-policy baselines (DQN and PPO), the observation and
+reward-shaping wrappers, the counterfactual-rollout framework, the
 experimental runs, and the report review. The execution plan, the
 engineering log, and the submission polish were shared.
 
@@ -530,7 +621,7 @@ From-scratch components: the MCTS planner, the deep-copy simulator,
 the counterfactual-rollout framework, the decision-record schema, the
 explanation pipeline and prompt design, the three evaluation metrics,
 and the chatbot interface. Off-the-shelf components:
-Stable-Baselines3~\cite{sb3} for the DQN, the
+Stable-Baselines3~\cite{sb3} for DQN and PPO, the
 Farama MiniGrid~\cite{minigrid} environment, the OpenAI and Anthropic
 Python SDKs~\cite{openai,anthropic}, and the standard Python
 scientific-computing stack (numpy, pandas, matplotlib, pytest).

@@ -37,6 +37,7 @@ def fig_task_performance() -> None:
         ("DQN (image)", ROOT / "results/dqn/baseline/seed0/eval_summary.json"),
         ("DQN (symbolic)", ROOT / "results/dqn/symbolic/seed0/eval_summary.json"),
         ("DQN (shaped)", ROOT / "results/dqn/shaped/seed0/eval_summary.json"),
+        ("PPO", ROOT / "results/ppo/baseline/seed0/eval_summary.json"),
         ("MCTS", ROOT / "results/mcts/baseline/seed0/eval_summary.json"),
     ]
     for label, p in runs:
@@ -146,6 +147,7 @@ def table_eval_summary() -> None:
         ("DQN (image)", ROOT / "results/dqn/baseline/seed0/eval_summary.json"),
         ("DQN (symbolic)", ROOT / "results/dqn/symbolic/seed0/eval_summary.json"),
         ("DQN (shaped)", ROOT / "results/dqn/shaped/seed0/eval_summary.json"),
+        ("PPO", ROOT / "results/ppo/baseline/seed0/eval_summary.json"),
         ("MCTS", ROOT / "results/mcts/baseline/seed0/eval_summary.json"),
     ]
     for label, p in runs:
