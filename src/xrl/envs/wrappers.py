@@ -64,6 +64,24 @@ class FlatSymbolicObsWrapper(gym.ObservationWrapper):
         return vec
 
 
+class StepPenaltyWrapper(gym.Wrapper):
+    """Adds a flat per-step penalty so the zero-reward stall is no longer
+    a valid local optimum. Stalling for ``max_steps=256`` with penalty
+    ``0.01`` yields return ``-2.56``, worse than the expected collision
+    return for an agent that at least attempts to make progress.
+    """
+
+    def __init__(self, env: gym.Env, penalty: float = 0.01) -> None:
+        super().__init__(env)
+        self._penalty = penalty
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        if not terminated:
+            reward = reward - self._penalty
+        return obs, reward, terminated, truncated, info
+
+
 class DistanceShapingWrapper(gym.Wrapper):
     """Reward shaping to combat the DQN "stay still" local minimum.
 
@@ -105,25 +123,25 @@ def make_env(
     seed: int | None = None,
     shaping: bool = False,
     shaping_coef: float = 0.02,
+    step_penalty: float = 0.0,
 ) -> gym.Env:
     """Construct a wrapped MiniGrid-Dynamic-Obstacles-8x8 env.
 
     Args:
-        mode: one of ``"image"`` or ``"symbolic"``.
+        mode: ``"image"`` or ``"symbolic"``.
         seed: optional seed for the initial reset.
-        shaping: if True, add DistanceShapingWrapper to the base env
-                 (before obs wrapping).
-
-    Returns:
-        A ``gymnasium.Env`` with the chosen observation wrapper.
+        shaping: if True, add ``DistanceShapingWrapper`` (potential-based
+                 Manhattan shaping).
+        shaping_coef: coefficient for the shaping term.
+        step_penalty: if nonzero, adds a flat per-step penalty. Useful
+                      to break the zero-reward-stall local optimum.
     """
     env = gym.make(ENV_ID)
+    if step_penalty > 0:
+        env = StepPenaltyWrapper(env, penalty=step_penalty)
     if shaping:
         env = DistanceShapingWrapper(env, coef=shaping_coef)
     if mode == "image":
-        # 7x7x3 image, flattened to 147-d vector for MlpPolicy.
-        # (Default SB3 NatureCNN requires 36x36 minimum; MiniGrid's 7x7
-        # is too small. Flatten + MLP is simpler and adequate.)
         env = ImgObsWrapper(env)
         env = FlattenObservation(env)
     elif mode == "symbolic":
