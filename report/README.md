@@ -19,8 +19,8 @@ python scripts/report_figures.py
 ## Authoring policy
 
 Per the ASEN 5264 AI policy, **prose and math must be authored by Sean
-and Andrew.** `main.tex` is a structured draft — every paragraph tagged
-`[DRAFT — rewrite in your voice]` or otherwise marked should be
+and Andrew.** `main.tex` is a structured draft, every paragraph tagged
+`[DRAFT, rewrite in your voice]` or otherwise marked should be
 rewritten before submission.
 
 Figures, tables, numerical results, and the bibliography skeleton are

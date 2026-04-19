@@ -20,7 +20,7 @@ from xrl.utils.seeding import seed_everything
 
 
 def build_policy_name(obs_mode: str) -> str:
-    # Both modes use MlpPolicy after flattening — see envs/wrappers.py.
+    # Both modes use MlpPolicy after flattening, see envs/wrappers.py.
     return "MlpPolicy"
 
 

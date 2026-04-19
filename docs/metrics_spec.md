@@ -1,4 +1,4 @@
-# Metrics Specification — for report §IV.E
+# Metrics Specification, for report §IV.E
 
 Three explanation-quality metrics. All take a
 (`DecisionRecord`, `Explanation`) pair as input and are aggregated with
@@ -18,7 +18,7 @@ For each entry in `Explanation.claims`:
    collision_rate, std_return, mean_steps_to_end}`, compare the claimed
    `value` to the actual stat. Within $\epsilon$ → hit.
 3. Claims citing out-of-scope metrics (e.g., `q_value`, `visit_count`)
-   are skipped, not counted as failures — they can be informative but
+   are skipped, not counted as failures, they can be informative but
    are not verifiable against rollout-style stats.
 
 Score = hits / total_claims.

@@ -1,4 +1,4 @@
-# Handoff — Where the Project Is and What's Left
+# Handoff, Where the Project Is and What's Left
 
 _Last updated 2026-04-17 by autonomous session. Read this before the next
 work session._
@@ -40,29 +40,29 @@ and soundness do not overlap; inferability is statistically tied.
 
 - Phase 0 scaffold (env, CI, lint, Makefile)
 - Phase 1 problem formulation frozen and tested
-- Phase 2 DQN — baseline trained but degenerate; symbolic + shaped
+- Phase 2 DQN, baseline trained but degenerate; symbolic + shaped
   variants also tried
-- Phase 3 MCTS — works excellently, 100% success
-- Phase 4 counterfactual framework — schema + bootstrap CIs + tree
+- Phase 3 MCTS, works excellently, 100% success
+- Phase 4 counterfactual framework, schema + bootstrap CIs + tree
   stats
-- Phase 5 LLM pipeline — client (real + mock), prompts, cache
-- Phase 6 metrics — fidelity + soundness + inferability with judge
-- Phase 7a chatbot — scaffolded
-- Phase 8 report — IEEE template with every section drafted, figures
+- Phase 5 LLM pipeline, client (real + mock), prompts, cache
+- Phase 6 metrics, fidelity + soundness + inferability with judge
+- Phase 7a chatbot, scaffolded
+- Phase 8 report, IEEE template with every section drafted, figures
   regenerable
 
 ## Decisions made autonomously
 
 See `ENGINEERING_LOG.md` for rationale on all of these:
 
-1. **DQN is suboptimal** — accepted per Sunberg's framing rather than
+1. **DQN is suboptimal**, accepted per Sunberg's framing rather than
    burning more time on PPO or a curriculum.
-2. **Phase 7b human pilot — CUT.** Note as future work.
-3. **Phase 7a chatbot — SCAFFOLDED, smoke-tested** via scripted input.
-4. **LLM explainer — real OpenAI (gpt-4o + gpt-4o-mini).** Anthropic
+2. **Phase 7b human pilot, CUT.** Note as future work.
+3. **Phase 7a chatbot, SCAFFOLDED, smoke-tested** via scripted input.
+4. **LLM explainer, real OpenAI (gpt-4o + gpt-4o-mini).** Anthropic
    path also available via `ANTHROPIC_API_KEY` + `provider: anthropic`
    in config.
-5. **n scaled to ~150 per agent** — CIs on fidelity/soundness became
+5. **n scaled to ~150 per agent**, CIs on fidelity/soundness became
    non-overlapping; no further scaling needed for the report's claim.
 
 ## What you (Sean) need to do
@@ -89,12 +89,12 @@ bash scripts/reproduce_all.sh
 ### To finalize the report
 
 1. Open `report/main.tex`.
-2. **Every paragraph marked `[DRAFT — rewrite in your voice]`** must be
+2. **Every paragraph marked `[DRAFT, rewrite in your voice]`** must be
    rewritten by you (AI-policy compliance).
 3. Verify every numeric claim against `report/figures/eval_summary.csv`
    and `results/metrics/summary.json`.
 4. Update the contributions section using `CONTRIBUTIONS.md` as a
-   starting point — **Andrew needs to confirm the split**.
+   starting point, **Andrew needs to confirm the split**.
 5. Pick one of the two release statements.
 6. Build: `cd report && latexmk -pdf main.tex`.
 
@@ -118,7 +118,7 @@ bash scripts/reproduce_all.sh
 - Train DQN to match MCTS performance (vanilla DQN fundamentally
   struggles on this env; documented honestly as a finding).
 - Author the final report prose (syllabus AI policy).
-- Verify the Belouadah 2025 citation — it's flagged `% VERIFY` in the
+- Verify the Belouadah 2025 citation, it's flagged `% VERIFY` in the
   bibliography.
 
 ## Key files

@@ -1,4 +1,4 @@
-# Observation vs. State — Fairness Note
+# Observation vs. State, Fairness Note
 
 MiniGrid-Dynamic-Obstacles-8x8 is technically a POMDP: the default
 observation is a 7×7 egocentric partial view plus a direction scalar. We
@@ -17,7 +17,7 @@ formulate it as an MDP because:
 | DQN | 7×7×3 partial image + direction | same (via neural policy) |
 | MCTS | full state (via simulator copy) | full state |
 
-This is not a fair head-to-head on task performance — MCTS has strictly
+This is not a fair head-to-head on task performance, MCTS has strictly
 more information. Two consequences:
 
 1. **Task-performance comparison is confounded.** If MCTS outperforms
@@ -28,7 +28,7 @@ more information. Two consequences:
 2. **Explanation fairness.** The explainer sees the same
    `DecisionRecord` format for both agents; it does not see raw
    observations. So the explanation-quality comparison is not directly
-   contaminated by the observation-access gap — but the *evidence
+   contaminated by the observation-access gap, but the *evidence
    content* is. MCTS's tree records outcomes of simulated futures
    computed from full state; DQN's counterfactual rollouts are also
    computed from full state (because rollouts go through the simulator,

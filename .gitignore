@@ -52,3 +52,7 @@ anthropic_key*
 # Editor
 *.swp
 *.swo
+
+# Reference material (Andrew's prior submissions, not ours to publish)
+reference/*
+!reference/README.md

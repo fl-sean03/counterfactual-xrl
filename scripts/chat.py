@@ -20,7 +20,7 @@ from xrl.explainer.client import make_client
 
 CHAT_SYSTEM = """\
 You are an interactive assistant helping a user understand an RL agent's
-decisions in the MiniGrid-Dynamic-Obstacles-8x8 environment — an 8x8
+decisions in the MiniGrid-Dynamic-Obstacles-8x8 environment, an 8x8
 gridworld where an agent must reach a goal at (6,6) while avoiding 4
 moving obstacles.
 
@@ -32,7 +32,7 @@ Reward structure:
   +(1 - 0.9 * step_count/256) on reaching the goal, -1 on collision,
   0 otherwise.
 
-You have access to one DecisionRecord at a time — the structured
+You have access to one DecisionRecord at a time, the structured
 evidence (counterfactual rollout stats or MCTS tree stats, depending on
 the agent) for the current decision in the trajectory.
 

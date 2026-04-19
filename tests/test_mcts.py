@@ -55,7 +55,7 @@ def test_mcts_returns_legal_action_and_populated_root() -> None:
 
 def test_mcts_beats_random_in_a_few_sims(benchmark_stateful=False) -> None:
     """MCTS with 100 sims should almost never bash into an obstacle on the
-    very first step of a fresh seed — much better than random's near-100%
+    very first step of a fresh seed, much better than random's near-100%
     collision rate. Probabilistic but very robust."""
     sim = Simulator.from_seed(seed=321)
     mcts = MCTS(MCTSConfig(sims_per_decision=100, rollout_policy="greedy"))

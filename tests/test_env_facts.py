@@ -82,7 +82,7 @@ def test_deepcopy_preserves_state():
     clone = copy.deepcopy(e)
 
     # Take the same action from both; they should produce identical outcomes.
-    act = 0  # deterministic action (turn left) — no agent-movement noise
+    act = 0  # deterministic action (turn left), no agent-movement noise
     out_a = e.step(act)
     out_b = clone.step(act)
     # Compare images (as proxy for full state)

@@ -1,4 +1,4 @@
-# Problem Formulation — MiniGrid-Dynamic-Obstacles-8x8
+# Problem Formulation, MiniGrid-Dynamic-Obstacles-8x8
 
 Phase 1 deliverable. This is the authoritative MDP specification; Section 3
 of the final report is derived from it. Every numeric claim is verified by
@@ -34,12 +34,12 @@ A state is the tuple
 - `agent_dir ∈ {0 = east, 1 = south, 2 = west, 3 = north}`
 - `obstacle_pos_k ∈ {1,…,6}²` (multiset, obstacles are interchangeable in
   state identity for reward purposes but distinguishable by position)
-- `step_count ∈ {0, 1, …, max_steps}` — used only for reward discounting
+- `step_count ∈ {0, 1, …, max_steps}`, used only for reward discounting
   and truncation; transitions and actions do not condition on it.
 
 The state space is combinatorially large but finite. Ignoring agent
 placement on the goal cell and collisions, a crude upper bound is
-`36 × 4 × C(36, 4) × 257 ≈ 2.2 × 10⁸` states — prohibitive for exact
+`36 × 4 × C(36, 4) × 257 ≈ 2.2 × 10⁸` states, prohibitive for exact
 value iteration, motivating the learning/planning approach.
 
 ### Action space A
@@ -72,7 +72,7 @@ stochastic obstacle step:
 Because the obstacle update happens *after* the agent step, stepping
 forward into an obstacle is decided before the obstacles move (the agent
 can only collide with an obstacle by stepping into it); the stochastic
-component affects the agent only on the *next* decision — the chance
+component affects the agent only on the *next* decision, the chance
 that an obstacle moves into the cell the agent is currently in. This
 asymmetry is load-bearing for MCTS: from the agent's perspective at time
 `t`, the outcome of action `a_t` depends on the *post-step* obstacle

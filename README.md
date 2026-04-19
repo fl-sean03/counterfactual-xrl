@@ -1,6 +1,6 @@
 # Counterfactual Explainability: Deep RL vs. Online Planning
 
-ASEN 5264 Final Project — CU Boulder, Spring 2026
+ASEN 5264 Final Project, CU Boulder, Spring 2026
 
 **Authors:** Sean Florez, Andrew Wernersbach
 **Repo:** github.com/fl-sean03/counterfactual-xrl

@@ -1,7 +1,7 @@
 """Evaluate MCTS agent over N episodes.
 
 MCTS acts on live env state at each step by cloning the simulator and
-searching. No training phase — this is planning-from-scratch.
+searching. No training phase, this is planning-from-scratch.
 
 Usage:
     python scripts/run_mcts.py --config configs/mcts_baseline.yaml

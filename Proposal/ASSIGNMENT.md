@@ -1,4 +1,4 @@
-# Final Project Proposal — ASEN 5264
+# Final Project Proposal, ASEN 5264
 
 **Assignment:** Q1 Final Project Proposal
 **Points:** 10
@@ -12,14 +12,14 @@ Write a short (less than 1 page, outline is ok) proposal for the Final Project.
 
 ### Required Sections
 
-1. **Problem Statement** — rough formulation as MDP, POMDP, optimization problem, or game
+1. **Problem Statement**, rough formulation as MDP, POMDP, optimization problem, or game
 
 2. **Three Levels of Success:**
-   - **Minimum Working Example** — baseline/first attempt. Significant grade penalty if not achieved.
-   - **Main Approach** — confident implementation that solves the problem well. Expected in final report.
-   - **Stretch Goal** — ambitious/innovative extension if time permits.
+   - **Minimum Working Example**, baseline/first attempt. Significant grade penalty if not achieved.
+   - **Main Approach**, confident implementation that solves the problem well. Expected in final report.
+   - **Stretch Goal**, ambitious/innovative extension if time permits.
 
-3. **Implementation Plan** — clearly state which components are from-scratch vs. off-the-shelf libraries.
+3. **Implementation Plan**, clearly state which components are from-scratch vs. off-the-shelf libraries.
 
 ## Project Ideas Source
 

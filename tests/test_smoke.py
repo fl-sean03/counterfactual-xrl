@@ -1,4 +1,4 @@
-"""Phase 0 baseline tests — package imports and seeding work."""
+"""Phase 0 baseline tests, package imports and seeding work."""
 
 from __future__ import annotations
 

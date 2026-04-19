@@ -7,7 +7,7 @@ Standard UCT (Kocsis & Szepesvári 2006) with the following choices:
 | Decision | Choice | Why |
 |---|---|---|
 | Selection | UCB1, `c = √2` | Textbook default; tunable. |
-| Expansion | Full-width on first visit | `|A| = 3` is small — no PW needed. |
+| Expansion | Full-width on first visit | `|A| = 3` is small, no PW needed. |
 | Rollout policy | Greedy-toward-goal OR random | Greedy is a domain heuristic (rotate to face goal, step forward). Random is the control. Config-switchable. |
 | Rollout depth cap | 60 steps | `max_episode_steps = 256`; 60 is enough to usually hit a terminal from depth-5 frontiers, bounded to keep sims cheap. |
 | Backup | Mean value | Standard MCTS. |

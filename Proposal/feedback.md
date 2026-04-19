@@ -11,7 +11,7 @@
 - Proposal direction approved as-is.
 - Pilot human study is suggested as a **depth extension**, not required. Fits
   naturally between the Main Approach (fidelity/soundness metrics) and the
-  Stretch Goal (chatbot) — human judgments of explanation quality would
+  Stretch Goal (chatbot), human judgments of explanation quality would
   complement the automated metrics.
 - If we pursue it: recruit a handful of participants unfamiliar with MiniGrid,
   show them agent trajectories with generated explanations (DQN-rollout vs

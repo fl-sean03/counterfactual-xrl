@@ -1,7 +1,7 @@
 """Regenerate every figure and table referenced in the final report.
 
 All figures are saved to ``report/figures/``. Data sources are read from
-``results/`` — if a source is missing the corresponding figure is
+``results/``, if a source is missing the corresponding figure is
 skipped with a warning (so this script is safe to run at any stage).
 
 Usage:

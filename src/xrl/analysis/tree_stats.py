@@ -15,7 +15,7 @@ from xrl.analysis.records import ActionStats
 
 
 def _wilson_ci(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
-    """Wilson score interval — good for small n and proportions near 0/1."""
+    """Wilson score interval, good for small n and proportions near 0/1."""
     if n == 0:
         return (0.0, 0.0)
     p = successes / n

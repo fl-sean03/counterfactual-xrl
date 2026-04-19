@@ -1,9 +1,9 @@
 """LLM client wrappers (Anthropic and OpenAI) with caching, retries, cost tracking.
 
-- ``AnthropicClient`` — Claude via Anthropic SDK, with prompt caching.
-- ``OpenAIClient`` — GPT models via OpenAI SDK.
-- ``MockClient`` — deterministic offline stub for tests and no-key dev.
-- ``make_client`` — picks a real client based on env vars, mock otherwise.
+- ``AnthropicClient``, Claude via Anthropic SDK, with prompt caching.
+- ``OpenAIClient``, GPT models via OpenAI SDK.
+- ``MockClient``, deterministic offline stub for tests and no-key dev.
+- ``make_client``, picks a real client based on env vars, mock otherwise.
 
 The key is read from ``ANTHROPIC_API_KEY`` or ``OPENAI_API_KEY``; we never
 read from or write to disk.

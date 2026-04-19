@@ -2,7 +2,7 @@
 
 Implements standard UCT with:
 - UCB1 selection
-- Full-width expansion (|A| = 3 is small — every child is expanded on
+- Full-width expansion (|A| = 3 is small, every child is expanded on
   first visit, no progressive widening needed)
 - Rollout to terminal or depth cap with either a uniform-random or
   greedy-toward-goal policy
@@ -12,7 +12,7 @@ Implements standard UCT with:
   the simulator already does this). Visit counts at the root converge to
   the expectation over futures.
 
-**From scratch** — no RL library is used for MCTS itself. The only
+**From scratch**, no RL library is used for MCTS itself. The only
 external library touched is the ``Simulator`` around MiniGrid.
 
 Tree-dump schema (root): see docs/tree_schema.md.
@@ -172,7 +172,7 @@ class MCTS:
         if not (terminated or truncated):
             rollout_return, success, collision = self._rollout(sim)
         else:
-            # Already terminal at leaf — attribute success/collision by last reward.
+            # Already terminal at leaf, attribute success/collision by last reward.
             success = terminated and reward > 0
             collision = terminated and reward < 0
 

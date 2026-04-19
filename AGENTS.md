@@ -3,7 +3,7 @@
 ## Quick Reference
 
 - **Course:** ASEN 5264 (Decision Making under Uncertainty)
-- **Project:** Counterfactual Explainability — Deep RL vs. Online Planning
+- **Project:** Counterfactual Explainability, Deep RL vs. Online Planning
 - **Environment:** MiniGrid-Dynamic-Obstacles-8x8-v0
 - **Language:** Python (MiniGrid/SB3 ecosystem)
 - **Student:** Sean Florez (sean.florez@colorado.edu)
@@ -45,5 +45,5 @@ while DQN requires post-hoc rollout analysis to reconstruct similar evidence.
 ## Post-Proposal Feedback
 
 Prof. Sunberg approved the proposal and suggested a **pilot human study** as a depth
-extension — have participants unfamiliar with the environment judge whether the
+extension, have participants unfamiliar with the environment judge whether the
 generated explanations make sense. Full feedback: `Proposal/feedback.md`.

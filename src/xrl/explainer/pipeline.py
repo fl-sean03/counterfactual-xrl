@@ -35,7 +35,7 @@ def _record_hash(rec: DecisionRecord) -> str:
 
 
 def parse_explanation_json(text: str) -> dict:
-    """Best-effort JSON parsing — Claude sometimes wraps in fences."""
+    """Best-effort JSON parsing, Claude sometimes wraps in fences."""
     t = text.strip()
     if t.startswith("```"):
         # strip ``` or ```json fence

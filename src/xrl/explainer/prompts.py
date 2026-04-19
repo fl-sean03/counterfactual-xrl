@@ -15,7 +15,7 @@ PROMPT_VERSION = 1
 
 SHARED_SYSTEM_HEADER = """\
 You are analyzing an RL agent's decision in the MiniGrid-Dynamic-Obstacles-8x8
-environment — an 8x8 gridworld where an agent must reach a goal while
+environment, an 8x8 gridworld where an agent must reach a goal while
 avoiding 4 moving obstacles.
 
 Action legend:
@@ -86,7 +86,7 @@ def build_user_prompt(record_dict: dict) -> str:
 def shared_nonevidence_portion(system_prompt: str) -> str:
     """Return the part of the system prompt that must match across sources.
 
-    Used by the parity test — the evidence header is sliced off and the
+    Used by the parity test, the evidence header is sliced off and the
     rest must match byte-for-byte between DQN and MCTS variants.
     """
     return system_prompt.split("EVIDENCE SOURCE:", 1)[0]

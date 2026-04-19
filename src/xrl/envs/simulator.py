@@ -4,7 +4,7 @@ MCTS requires the ability to "roll back" the environment to a known state
 and branch forward along different action sequences. MiniGrid envs support
 ``copy.deepcopy`` (their RNG is a ``numpy.random.Generator`` stored on
 ``unwrapped.np_random``, which pickles cleanly). The only gotcha is that
-pygame rendering contexts are not picklable — we therefore construct
+pygame rendering contexts are not picklable, we therefore construct
 simulator envs with ``render_mode=None`` (MiniGrid's default) and never
 attach a renderer.
 """

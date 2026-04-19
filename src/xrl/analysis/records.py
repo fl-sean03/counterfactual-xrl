@@ -33,7 +33,7 @@ class DecisionRecord:
     """Everything the LLM sees for one decision.
 
     Fields:
-        source: ``"dqn_rollout"``, ``"mcts_tree"`` — which evidence pipeline
+        source: ``"dqn_rollout"``, ``"mcts_tree"``, which evidence pipeline
                 produced the stats.
         agent_id: free-form identifier (e.g., ``"dqn_baseline_seed0"``).
         state_id: ``{episode_seed}:{step}``.

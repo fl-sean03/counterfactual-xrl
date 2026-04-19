@@ -2,10 +2,10 @@
 
 Two modes exposed via `make_env`:
 
-1. ``image``   — ``ImgObsWrapper`` from MiniGrid. The observation is the
+1. ``image``  , ``ImgObsWrapper`` from MiniGrid. The observation is the
    7x7x3 egocentric partial image. Consumed by ``CnnPolicy``. This is the
    baseline, partial-observability DQN.
-2. ``symbolic`` — ``FlatSymbolicObsWrapper`` below. The observation is a
+2. ``symbolic``, ``FlatSymbolicObsWrapper`` below. The observation is a
    flat vector of full ground-truth state: agent pos, agent dir,
    per-obstacle positions. Consumed by ``MlpPolicy``. This is the
    full-state control DQN used to isolate observability from
@@ -56,7 +56,7 @@ class FlatSymbolicObsWrapper(gym.ObservationWrapper):
         for i, ob in enumerate(u.obstacles[: self._n_obstacles]):
             pos = getattr(ob, "cur_pos", None)
             if pos is None:
-                # Obstacle not yet placed for some reason — leave as 0.
+                # Obstacle not yet placed for some reason, leave as 0.
                 continue
             ox, oy = pos
             vec[6 + 2 * i] = ox / self._w
