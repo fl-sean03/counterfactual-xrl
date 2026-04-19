@@ -128,6 +128,42 @@ stays still should be interesting.
 **Next:** Build decision records on shared held-out trajectories,
 run mock explainer + metrics end-to-end.
 
+## 2026-04-18, Simplification pass before domain-expert review
+
+**What:** Trimmed scope-creep back to the proposal. Specifically:
+the proposal explicitly specified "100+ MC rollouts per available
+action" whereas our implementation had been at N=20 deterministic,
+which under-sampled the policy distribution and inflated the fidelity
+gap between PPO and MCTS. Corrected to N=100 stochastic sampling from
+PPO's action distribution, which is the genuine Monte-Carlo
+interpretation of using the learned model weights as the thinking
+mechanism.
+
+**What was removed:**
+- `RichSymbolicObsWrapper` (unused experimental feature).
+- `configs/dqn_improved.yaml` (failed tuning attempt, not cited).
+- The N=20 deterministic PPO rollout path (replaced by N=100 stochastic).
+
+**What was kept:**
+- Two DQN variants (image, symbolic, shaped) as Section VI.D ablation,
+  because the original proposal did commit to DQN and the DQN
+  collapse is a scientifically useful observation.
+- PPO as the primary RL agent in the main comparison (pivot from
+  DQN justified by the collapse, transparent in the paper).
+- MCTS from-scratch, LLM explainer, fidelity / soundness / inferability
+  metrics.
+- Chatbot scaffold (stretch, smoke-tested).
+
+**Why:** Sean wants the paper in a clean, reviewable state for a
+domain-expert audit. Fewer moving parts, proposal-aligned
+methodology, single reproduction path
+(`bash scripts/reproduce_all.sh`).
+
+**Result (pending, in progress):**
+Running a fresh full pipeline at N=100 stochastic rollouts. Numbers
+will be updated in the report once the explainer and evaluator pass
+complete.
+
 ## 2026-04-17, MCTS full eval (50 episodes)
 
 **What:** Ran MCTS (500 sims, greedy rollout) over 50 fresh seeds.

@@ -135,6 +135,7 @@ def build_ppo_records(
     out_dir: Path,
     max_steps_per_traj: int = 20,
     rollout_cap: int = 50,
+    stochastic_rollouts: bool = True,
 ) -> int:
     with open(run_dir / "meta.json") as f:
         meta = json.load(f)
@@ -142,8 +143,10 @@ def build_ppo_records(
     ppo = PPOAgent.load(run_dir / "model.zip")
     obs_fn = obs_from_sim_factory(obs_mode)
 
-    def policy_predict(obs):
-        return ppo.predict(obs)
+    # Rollouts draw from PPO's action distribution (stochastic) so the
+    # Monte Carlo evidence reflects the agent's policy distribution
+    # rather than collapsing to a single argmax trajectory.
+    policy_predict = ppo.sample if stochastic_rollouts else ppo.predict
 
     written = 0
     for seed in seeds:
@@ -181,6 +184,8 @@ def build_ppo_records(
                 agent_metadata={
                     "action_probs": ppo.action_probs(obs).tolist(),
                     "policy": "PPO",
+                    "rollouts_stochastic": bool(stochastic_rollouts),
+                    "n_per_action": int(n_per_action),
                 },
             )
             d = rec.to_dict()
@@ -256,6 +261,11 @@ def main() -> None:
     ap.add_argument("--n-per-action", type=int, default=100)
     ap.add_argument("--max-steps", type=int, default=20, help="cap steps per trajectory")
     ap.add_argument("--rollout-cap", type=int, default=50)
+    ap.add_argument(
+        "--ppo-deterministic-rollouts",
+        action="store_true",
+        help="use PPO argmax (old behaviour). Default is stochastic sampling.",
+    )
     ap.add_argument("--out-dir", default="results/decision_records")
     args = ap.parse_args()
 
@@ -287,8 +297,13 @@ def main() -> None:
             out_dir,
             max_steps_per_traj=args.max_steps,
             rollout_cap=args.rollout_cap,
+            stochastic_rollouts=not args.ppo_deterministic_rollouts,
         )
-        print(f"PPO: wrote {n} records to {out_dir / aid}")
+        print(
+            f"PPO: wrote {n} records to {out_dir / aid} "
+            f"(n_per_action={args.n_per_action}, stochastic="
+            f"{not args.ppo_deterministic_rollouts})"
+        )
 
     if args.mcts_config:
         n = build_mcts_records(

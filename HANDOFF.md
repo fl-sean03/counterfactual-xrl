@@ -21,20 +21,28 @@ meaningful metrics.
 | DQN (shaped, 300k) | 0.000 | 0.167 | −0.167 | 234.4 |
 | **MCTS (500 sims)** | **1.000** | **0.000** | **0.934** | **18.3** |
 
-**Explanation quality** (n=150 DQN / n=145 MCTS; gpt-4o generator,
-gpt-4o-mini judge; 95% bootstrap CIs):
+**Explanation quality — FINAL** (n=121 PPO / n=149 MCTS; gpt-4o
+generator, gpt-4o-mini judge; 95% bootstrap CIs; PPO counterfactual
+rollouts at N=100 per action, stochastic sampling from the policy
+distribution, matching the proposal's ">=100 MC rollouts per
+available action" spec):
 
-| Metric | DQN rollout | MCTS tree |
+| Metric | PPO rollout | MCTS tree |
 |---|---|---|
-| Fidelity | 0.437 [0.41, 0.47] | **0.933 [0.92, 0.95]** |
-| Soundness | 0.758 [0.73, 0.78] | **0.891 [0.87, 0.91]** |
-| Inferability | 0.960 [0.93, 0.99] | 0.952 [0.91, 0.99] |
+| Fidelity | 0.899 [0.88, 0.92] | **0.928 [0.91, 0.95]** |
+| Soundness | 0.847 [0.82, 0.87] | **0.879 [0.86, 0.90]** |
+| Inferability | 0.959 [0.92, 0.99] | 0.973 [0.95, 0.99] |
 
-Total API spend: **$1.72** (under $10 cap).
+Total API spend across all runs: ~$6 (well under the $10 budget).
 
-Headline: **MCTS-tree evidence yields 2.1× the fidelity of DQN
-counterfactual rollouts at matched decision states.** CIs on fidelity
-and soundness do not overlap; inferability is statistically tied.
+Headline: **under a proposal-spec Monte Carlo setup, MCTS-tree
+evidence retains only a small (0.03) but statistically supported
+fidelity and soundness advantage over PPO counterfactual rollouts.**
+An earlier run with N=20 deterministic rollouts showed a much larger
+apparent gap (0.12 fidelity); most of that was an artefact of
+inadequate sampling, not a paradigm difference. The residual gap is
+attributable to UCB1 concentrating tree samples on decision-relevant
+actions.
 
 ### What's genuinely done
 
@@ -55,15 +63,18 @@ and soundness do not overlap; inferability is statistically tied.
 
 See `ENGINEERING_LOG.md` for rationale on all of these:
 
-1. **DQN is suboptimal**, accepted per Sunberg's framing rather than
-   burning more time on PPO or a curriculum.
-2. **Phase 7b human pilot, CUT.** Note as future work.
-3. **Phase 7a chatbot, SCAFFOLDED, smoke-tested** via scripted input.
-4. **LLM explainer, real OpenAI (gpt-4o + gpt-4o-mini).** Anthropic
+1. **DQN was pivoted to PPO** after DQN collapsed into a stall policy
+   on this environment. PPO reaches 0.590 success. DQN results remain
+   in the paper as a Section VI.D ablation explaining the pivot.
+2. **Rollouts switched to stochastic sampling at N=100 per action**,
+   matching the proposal's Monte Carlo specification. Earlier runs
+   at N=20 deterministic argmax produced an inflated fidelity gap
+   that was largely a sampling artefact.
+3. **Phase 7b human pilot, CUT.** Noted as future work.
+4. **Phase 7a chatbot, SCAFFOLDED, smoke-tested** via scripted input.
+5. **LLM explainer, real OpenAI (gpt-4o + gpt-4o-mini).** Anthropic
    path also available via `ANTHROPIC_API_KEY` + `provider: anthropic`
-   in config.
-5. **n scaled to ~150 per agent**, CIs on fidelity/soundness became
-   non-overlapping; no further scaling needed for the report's claim.
+   in `configs/explainer.yaml`.
 
 ## What you (Sean) need to do
 

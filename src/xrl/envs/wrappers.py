@@ -64,87 +64,6 @@ class FlatSymbolicObsWrapper(gym.ObservationWrapper):
         return vec
 
 
-class RichSymbolicObsWrapper(gym.ObservationWrapper):
-    """Enriched full-state symbolic observation.
-
-    Adds to ``FlatSymbolicObsWrapper``:
-      * relative offsets of every obstacle from the agent (dx, dy) in
-        ``[-1, 1]``, which is the feature an MLP is most likely to pick
-        up as "obstacle is right in front of me";
-      * manhattan distance to the goal, normalized to ``[0, 1]``;
-      * the cell directly in front of the agent (one-hot: empty / wall
-        / obstacle / goal), so the policy has a privileged "would a
-        forward move be fatal?" feature.
-
-    Output layout (length = 2 + 4 + 4 * n_obstacles + 1 + 4):
-        [agent_x, agent_y,
-         dir_onehot_0..3,
-         obs_0_x, obs_0_y, obs_0_dx, obs_0_dy, ...,
-         dist_to_goal,
-         front_cell_onehot_0..3 (empty, wall, obstacle, goal)]
-    """
-
-    FRONT_EMPTY = 0
-    FRONT_WALL = 1
-    FRONT_OBSTACLE = 2
-    FRONT_GOAL = 3
-
-    def __init__(self, env: gym.Env) -> None:
-        super().__init__(env)
-        u = env.unwrapped
-        self._n_obstacles = u.n_obstacles
-        self._w = u.width
-        self._h = u.height
-        dim = 2 + 4 + 4 * self._n_obstacles + 1 + 4
-        self.observation_space = spaces.Box(low=-1.0, high=1.0, shape=(dim,), dtype=np.float32)
-
-    def _front_cell_class(self) -> int:
-        from minigrid.core.world_object import Ball, Goal, Wall
-
-        u = self.env.unwrapped
-        dir_vec = u.dir_vec
-        fwd = (u.agent_pos[0] + dir_vec[0], u.agent_pos[1] + dir_vec[1])
-        if fwd[0] < 0 or fwd[0] >= u.width or fwd[1] < 0 or fwd[1] >= u.height:
-            return self.FRONT_WALL
-        cell = u.grid.get(fwd[0], fwd[1])
-        if cell is None:
-            return self.FRONT_EMPTY
-        if isinstance(cell, Wall):
-            return self.FRONT_WALL
-        if isinstance(cell, Ball):
-            return self.FRONT_OBSTACLE
-        if isinstance(cell, Goal):
-            return self.FRONT_GOAL
-        return self.FRONT_EMPTY
-
-    def observation(self, obs: dict) -> np.ndarray:
-        u = self.env.unwrapped
-        vec = np.zeros(self.observation_space.shape, dtype=np.float32)
-        ax, ay = u.agent_pos
-        vec[0] = ax / self._w
-        vec[1] = ay / self._h
-        vec[2 + int(u.agent_dir)] = 1.0
-
-        off = 6
-        for i, ob in enumerate(u.obstacles[: self._n_obstacles]):
-            pos = getattr(ob, "cur_pos", None)
-            if pos is None:
-                continue
-            ox, oy = pos
-            vec[off + 4 * i + 0] = ox / self._w
-            vec[off + 4 * i + 1] = oy / self._h
-            vec[off + 4 * i + 2] = (ox - ax) / self._w
-            vec[off + 4 * i + 3] = (oy - ay) / self._h
-
-        off2 = 6 + 4 * self._n_obstacles
-        gx, gy = u.width - 2, u.height - 2
-        vec[off2] = (abs(gx - ax) + abs(gy - ay)) / (self._w + self._h)
-
-        off3 = off2 + 1
-        vec[off3 + self._front_cell_class()] = 1.0
-        return vec
-
-
 class StepPenaltyWrapper(gym.Wrapper):
     """Adds a flat per-step penalty so the zero-reward stall is no longer
     a valid local optimum. Stalling for ``max_steps=256`` with penalty
@@ -227,8 +146,6 @@ def make_env(
         env = FlattenObservation(env)
     elif mode == "symbolic":
         env = FlatSymbolicObsWrapper(env)
-    elif mode == "rich":
-        env = RichSymbolicObsWrapper(env)
     else:
         raise ValueError(f"Unknown obs mode: {mode!r}")
     if seed is not None:

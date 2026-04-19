@@ -48,6 +48,16 @@ class PPOAgent:
         action, _ = self.model.predict(obs, deterministic=deterministic)
         return int(action)
 
+    def sample(self, obs: Any) -> int:
+        """Stochastic sample from the policy distribution.
+
+        Used for Monte-Carlo-style counterfactual rollouts: we want
+        rollouts to reflect the agent's actual distribution over
+        trajectories, not a single argmax trajectory.
+        """
+        action, _ = self.model.predict(obs, deterministic=False)
+        return int(action)
+
     def action_probs(self, obs: Any) -> np.ndarray:
         """Return the per-action probability vector under the current policy.
 
