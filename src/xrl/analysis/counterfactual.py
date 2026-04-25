@@ -78,6 +78,7 @@ def counterfactual_rollouts(
         for i in range(n_per_action):
             # Fresh branch per rollout.
             sim = root_sim.clone()
+            sim.reseed_dynamics(int(rng.integers(0, 2**31 - 1)))
             # Force first action from this counterfactual branch.
             r0 = sim.step(a)
             total = r0.reward

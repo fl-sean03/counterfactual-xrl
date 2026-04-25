@@ -58,6 +58,31 @@ def test_mcts_stats_round_trip_through_schema() -> None:
     sim.close()
 
 
+def test_mcts_stats_are_strict_json_serialisable(tmp_path) -> None:
+    sim = Simulator.from_seed(seed=8)
+    mcts = MCTS(MCTSConfig(sims_per_decision=20, rollout_policy="random"))
+    action, root = mcts.plan(sim)
+    stats = mcts_root_to_action_stats(root, legal_actions=[0, 1, 2])
+    rec = DecisionRecord(
+        source="mcts_tree",
+        agent_id="test",
+        state_id="8:0",
+        step=0,
+        agent_pos=(1, 1),
+        agent_dir=0,
+        obstacle_positions=[(2, 3), (4, 5), (5, 2), (3, 6)],
+        chosen_action=int(action),
+        per_action_stats=stats,
+    )
+    from xrl.analysis.records import save_record
+
+    out = tmp_path / "record.json"
+    save_record(rec, out)
+    text = out.read_text()
+    assert "NaN" not in text
+    sim.close()
+
+
 def test_action_stats_is_serialisable() -> None:
     s = ActionStats(
         action=0,

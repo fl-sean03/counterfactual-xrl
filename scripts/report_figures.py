@@ -77,7 +77,15 @@ def fig_metric_comparison() -> None:
         return
     with open(p) as f:
         summary = json.load(f)
-    sources = list(summary.keys())
+    source_labels = {
+        "ppo_rollout": "PPO rollouts",
+        "dqn_rollout": "DQN rollouts",
+        "mcts_tree": "MCTS tree",
+    }
+    preferred = ["ppo_rollout", "dqn_rollout", "mcts_tree"]
+    sources = [s for s in preferred if s in summary] + [
+        s for s in summary.keys() if s not in preferred
+    ]
     if not sources:
         return
     metrics = ["fidelity", "soundness", "inferability"]
@@ -91,7 +99,13 @@ def fig_metric_comparison() -> None:
         lo = [v - c[0] for v, c in zip(vals, cis, strict=False)]
         hi = [c[1] - v for v, c in zip(vals, cis, strict=False)]
         offset = (i - (len(sources) - 1) / 2) * width
-        ax.bar(x + offset, vals, width, label=src, color=colors[i % len(colors)])
+        ax.bar(
+            x + offset,
+            vals,
+            width,
+            label=source_labels.get(src, src),
+            color=colors[i % len(colors)],
+        )
         ax.errorbar(x + offset, vals, yerr=[lo, hi], fmt="none", ecolor="k", capsize=2)
     ax.set_xticks(x)
     ax.set_xticklabels(metrics)

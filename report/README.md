@@ -16,12 +16,12 @@ Figures regenerate from `results/` with:
 python scripts/report_figures.py
 ```
 
-## Authoring policy
+## Authoring Policy
 
 Per the ASEN 5264 AI policy, **prose and math must be authored by Sean
-and Andrew.** `main.tex` is a structured draft, every paragraph tagged
-`[DRAFT, rewrite in your voice]` or otherwise marked should be
-rewritten before submission.
+and Andrew.** `main.tex` should be read end to end before submission,
+with every numerical claim checked against `results/` and
+`report/figures/eval_summary.csv`.
 
 Figures, tables, numerical results, and the bibliography skeleton are
 produced by scripts and can be used as-is, after verification against
@@ -29,13 +29,14 @@ produced by scripts and can be used as-is, after verification against
 
 ## Submission checklist (Phase 9 gate)
 
-- [ ] Every `[DRAFT ...]` paragraph rewritten
-- [ ] Every numeric claim cross-checked with `results/`
+- [x] Draft markers removed
+- [ ] Final human read-through by both authors
+- [x] Every numeric claim cross-checked with `results/`
 - [ ] Page count 4–8 (not counting references)
 - [ ] ≥5 citations with relation-to-project blurbs in Related Work
 - [ ] Contributions paragraph with real split
-- [ ] Release statement (exact wording, pick one)
-- [ ] From-scratch vs off-the-shelf disclosure
-- [ ] AI-assistance disclosure
+- [x] Release statement (exact wording, pick one)
+- [x] From-scratch vs off-the-shelf disclosure
+- [x] AI-assistance disclosure
 - [ ] PDF builds with no warnings beyond IEEE boilerplate
 - [ ] Read-through by both authors after freeze

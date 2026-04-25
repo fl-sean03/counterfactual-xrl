@@ -7,7 +7,21 @@ name = "xrl"
 version = "0.1.0"
 description = "Counterfactual XRL: DQN vs MCTS explainability"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "anthropic>=0.34.0",
+  "gymnasium==0.29.1",
+  "jsonschema",
+  "matplotlib",
+  "minigrid==2.3.1",
+  "numpy",
+  "openai>=1.40.0",
+  "pandas",
+  "pyyaml",
+  "seaborn",
+  "stable-baselines3==2.3.2",
+  "torch>=2.4",
+  "tqdm",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

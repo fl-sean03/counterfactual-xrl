@@ -68,7 +68,7 @@ def mcts_root_to_action_stats(root: Node, legal_actions: list[int]) -> list[Acti
                 std_return=float(std),
                 success_rate=float(p_succ),
                 collision_rate=float(p_coll),
-                mean_steps_to_end=float("nan"),  # not tracked during MCTS
+                mean_steps_to_end=None,  # not tracked during MCTS
                 success_ci=_wilson_ci(child.success_count, child.visits),
                 collision_ci=_wilson_ci(child.collision_count, child.visits),
                 n_rollouts=int(child.visits),

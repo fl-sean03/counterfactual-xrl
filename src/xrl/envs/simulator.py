@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import gymnasium as gym
+import numpy as np
 
 from xrl.envs.wrappers import ENV_ID
 
@@ -56,6 +57,10 @@ class Simulator:
 
     def clone(self) -> Simulator:
         return Simulator(copy.deepcopy(self._env))
+
+    def reseed_dynamics(self, seed: int) -> None:
+        """Reseed stochastic transition dynamics without resetting the state."""
+        self._env.unwrapped.np_random = np.random.default_rng(seed)
 
     def step(self, action: int) -> StepResult:
         obs, reward, terminated, truncated, info = self._env.step(action)

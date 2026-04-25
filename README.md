@@ -7,15 +7,18 @@ ASEN 5264 Final Project, CU Boulder, Spring 2026
 
 ## Research Question
 
-Is suboptimal online planning more explainable than suboptimal deep RL,
-specifically because the search tree records the agent's deliberation?
+Does online-planning evidence support different natural-language
+explanations than post-hoc counterfactual evidence from a learned RL
+policy?
 
 ## Approach
 
-Train DQN and MCTS agents on `MiniGrid-Dynamic-Obstacles-8x8-v0`, extract
-counterfactual statistics from each (rollouts for DQN, tree stats for MCTS),
-feed structured evidence to Claude, and compare generated explanations on
-fidelity, soundness, and post-hoc inferability.
+Train PPO and MCTS agents on `MiniGrid-Dynamic-Obstacles-8x8-v0`, extract
+counterfactual rollout statistics for PPO and tree statistics for MCTS,
+feed structured evidence to a GPT-4o explainer, and compare generated
+explanations on fidelity, soundness, and post-hoc inferability. DQN
+variants are included as diagnostic ablations because they collapse to
+stall or near-stall policies on this sparse-reward environment.
 
 See [EXECUTION_PLAN.md](EXECUTION_PLAN.md) for the full phased plan.
 
@@ -23,10 +26,10 @@ See [EXECUTION_PLAN.md](EXECUTION_PLAN.md) for the full phased plan.
 
 ```
 src/xrl/
-  agents/         # DQN (SB3 wrapper) + MCTS (from scratch)
+  agents/         # DQN/PPO (SB3 wrappers) + MCTS (from scratch)
   envs/           # Wrappers + deep-copy simulator
   analysis/       # Counterfactual rollouts + tree stats
-  explainer/      # Anthropic client + prompts + pipeline
+  explainer/      # OpenAI/Anthropic clients + prompts + pipeline
   eval/           # Metrics + eval runner
   utils/          # Seeding, IO
 tests/            # pytest suite
@@ -49,7 +52,7 @@ make lint           # ruff + black checks
 
 ## License / Release
 
-Release status TBD at report submission (see EXECUTION_PLAN.md §5 Phase 8).
+The authors grant permission for the final report to be posted publicly.
 
 ## References
 

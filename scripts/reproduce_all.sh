@@ -6,12 +6,12 @@
 #   PPO training (symbolic, 8 env):~8 min
 #   MCTS 50-episode eval:         ~12 min
 #   DecisionRecord build:          ~6 min
-#   Explainer (270 calls, gpt-4o): ~20 min   (requires OPENAI_API_KEY)
+#   Explainer (~260 calls, gpt-4o): ~30 min (requires OPENAI_API_KEY)
 #   Metrics (1300+ judge calls):    ~8 min
 #   Total: ~60 min + ~$3 API
 #
-# Idempotent: skips steps whose output already exists. Delete results/
-# to force re-run.
+# Idempotent: skips steps whose output already exists. Delete results/ or
+# the affected subdirectory to force a re-run after code changes.
 #
 # Prereq: `make install`, `export OPENAI_API_KEY=...` (or ANTHROPIC_API_KEY).
 

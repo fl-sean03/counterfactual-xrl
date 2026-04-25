@@ -48,10 +48,10 @@ Return ONLY the JSON object, no preamble.
 """
 
 
-DQN_EVIDENCE_HEADER = """\
+ROLLOUT_EVIDENCE_HEADER = """\
 EVIDENCE SOURCE: counterfactual Monte Carlo rollouts.
 For each legal action, we forced the agent to take that action once and
-then followed the trained DQN policy to termination. Rollouts were run
+then followed the trained policy to termination. Rollouts were run
 N times per action and aggregated into means, rates, and bootstrap CIs.
 """
 
@@ -67,8 +67,8 @@ root's children during search.
 
 def build_system_prompt(source: str) -> str:
     """Build the full system prompt for a given evidence source."""
-    if source == "dqn_rollout":
-        evidence_header = DQN_EVIDENCE_HEADER
+    if source in {"dqn_rollout", "ppo_rollout"}:
+        evidence_header = ROLLOUT_EVIDENCE_HEADER
     elif source == "mcts_tree":
         evidence_header = MCTS_EVIDENCE_HEADER
     else:

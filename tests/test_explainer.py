@@ -46,8 +46,10 @@ def _make_record(source: str) -> DecisionRecord:
 def test_prompt_parity_between_sources() -> None:
     """The non-evidence parts of the system prompt must be byte-identical."""
     dqn_sys = build_system_prompt("dqn_rollout")
+    ppo_sys = build_system_prompt("ppo_rollout")
     mcts_sys = build_system_prompt("mcts_tree")
     assert shared_nonevidence_portion(dqn_sys) == shared_nonevidence_portion(mcts_sys)
+    assert shared_nonevidence_portion(ppo_sys) == shared_nonevidence_portion(mcts_sys)
 
 
 def test_explain_end_to_end_with_mock() -> None:

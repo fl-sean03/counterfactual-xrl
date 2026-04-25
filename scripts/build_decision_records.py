@@ -172,7 +172,7 @@ def build_ppo_records(
             action = ppo.predict(obs)
             u = env.unwrapped
             rec = DecisionRecord(
-                source="dqn_rollout",  # schema-compatible "rollout" source
+                source="ppo_rollout",
                 agent_id=agent_id,
                 state_id=f"{seed}:{step}",
                 step=step,

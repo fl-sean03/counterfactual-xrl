@@ -91,6 +91,7 @@ class MCTSConfig:
     max_rollout_depth: int = 50
     rollout_policy: str = "greedy"
     gamma: float = 1.0
+    seed: int = 0
 
 
 class MCTS:
@@ -98,6 +99,7 @@ class MCTS:
 
     def __init__(self, config: MCTSConfig | None = None) -> None:
         self.cfg = config or MCTSConfig()
+        self._rng = np.random.default_rng(self.cfg.seed)
         self._last_root: Node | None = None
 
     def _rollout(self, sim: Simulator) -> tuple[float, bool, bool]:
@@ -122,6 +124,7 @@ class MCTS:
         """One full MCTS iteration: select→expand→simulate→backup."""
         node = root
         sim = root_sim.clone()
+        sim.reseed_dynamics(int(self._rng.integers(0, 2**31 - 1)))
         path: list[Node] = [root]
         trajectory_return = 0.0
         discount = 1.0
@@ -153,7 +156,7 @@ class MCTS:
             for a in sim.legal_actions():
                 node.children.setdefault(a, Node(parent=node, action_from_parent=a))
             # Pick one child to roll out through.
-            chosen_action = int(np.random.randint(0, len(node.children)))
+            chosen_action = int(self._rng.choice(list(node.children.keys())))
             r = sim.step(chosen_action)
             reward = r.reward
             trajectory_return += discount * reward

@@ -63,7 +63,7 @@ def fidelity_score(record: DecisionRecord, explanation: Explanation, tol: float 
         if action is None or metric is None or value is None:
             continue
         stat = _find_stat(record, int(action))
-        if stat is None or metric not in stat:
+        if stat is None or metric not in stat or stat[metric] is None:
             continue
         if abs(stat[metric] - float(value)) <= tol:
             hits += 1

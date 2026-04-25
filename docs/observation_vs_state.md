@@ -15,16 +15,18 @@ formulate it as an MDP because:
 | Agent | Sees | Plans with |
 |---|---|---|
 | DQN | 7×7×3 partial image + direction | same (via neural policy) |
+| PPO | full-state symbolic vector | same (via neural policy) |
 | MCTS | full state (via simulator copy) | full state |
 
-This is not a fair head-to-head on task performance, MCTS has strictly
-more information. Two consequences:
+The original image-DQN versus MCTS comparison was not a fair head-to-head
+on task performance because MCTS had strictly more information. The final
+report's main comparison uses symbolic PPO versus MCTS, so both primary
+agents receive full state information. Two consequences remain:
 
 1. **Task-performance comparison is confounded.** If MCTS outperforms
-   DQN, it may be information access rather than planning ability. The
-   Phase 2/3 matched-performance gate (±0.05 success rate) tries to
-   neutralize this: tune both agents until they perform the same, then
-   compare explanations at equal performance.
+   PPO, it may be competence rather than planning structure. The final
+   report treats this as a threat to validity rather than claiming a
+   performance-matched comparison.
 2. **Explanation fairness.** The explainer sees the same
    `DecisionRecord` format for both agents; it does not see raw
    observations. So the explanation-quality comparison is not directly

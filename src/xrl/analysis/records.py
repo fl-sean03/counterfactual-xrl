@@ -1,8 +1,8 @@
 """DecisionRecord schema: the structured evidence we hand to the LLM.
 
-One DecisionRecord per (episode_seed, step). Both the DQN (rollout stats)
-and MCTS (tree stats) pipelines produce records in this same shape, so the
-downstream explainer prompt is identical across agents.
+One DecisionRecord per (episode_seed, step). Learned-policy rollout
+pipelines (DQN/PPO) and MCTS tree stats produce records in this same
+shape, so the downstream explainer prompt is identical across agents.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ class ActionStats:
     std_return: float
     success_rate: float
     collision_rate: float
-    mean_steps_to_end: float
+    mean_steps_to_end: float | None
     success_ci: tuple[float, float]
     collision_ci: tuple[float, float]
     n_rollouts: int
@@ -33,16 +33,17 @@ class DecisionRecord:
     """Everything the LLM sees for one decision.
 
     Fields:
-        source: ``"dqn_rollout"``, ``"mcts_tree"``, which evidence pipeline
-                produced the stats.
+        source: ``"dqn_rollout"``, ``"ppo_rollout"``, or ``"mcts_tree"``,
+                which evidence pipeline produced the stats.
         agent_id: free-form identifier (e.g., ``"dqn_baseline_seed0"``).
         state_id: ``{episode_seed}:{step}``.
         step: decision index within the episode.
         agent_pos / agent_dir / obstacle_positions: human-readable state
         chosen_action: the action the agent actually took.
         per_action_stats: list[ActionStats], one entry per legal action.
-        agent_metadata: agent-native extras (DQN Q-values, MCTS visit
-                        counts at root, budget, etc.).
+        agent_metadata: agent-native extras (DQN Q-values, PPO action
+                        probabilities, MCTS visit counts at root, budget,
+                        etc.).
     """
 
     source: str
@@ -83,7 +84,7 @@ DECISION_RECORD_SCHEMA: dict[str, Any] = {
         "per_action_stats",
     ],
     "properties": {
-        "source": {"enum": ["dqn_rollout", "mcts_tree"]},
+        "source": {"enum": ["dqn_rollout", "ppo_rollout", "mcts_tree"]},
         "agent_id": {"type": "string"},
         "state_id": {"type": "string"},
         "step": {"type": "integer", "minimum": 0},
@@ -115,7 +116,7 @@ DECISION_RECORD_SCHEMA: dict[str, Any] = {
                     "std_return": {"type": "number"},
                     "success_rate": {"type": "number", "minimum": 0, "maximum": 1},
                     "collision_rate": {"type": "number", "minimum": 0, "maximum": 1},
-                    "mean_steps_to_end": {"type": "number", "minimum": 0},
+                    "mean_steps_to_end": {"type": ["number", "null"], "minimum": 0},
                     "success_ci": {
                         "type": "array",
                         "items": {"type": "number"},
@@ -140,7 +141,7 @@ DECISION_RECORD_SCHEMA: dict[str, Any] = {
 def save_record(record: DecisionRecord, path: str | Path) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
-        json.dump(record.to_dict(), f, indent=2)
+        json.dump(record.to_dict(), f, indent=2, allow_nan=False)
 
 
 def load_record(path: str | Path) -> DecisionRecord:
