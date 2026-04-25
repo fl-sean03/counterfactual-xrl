@@ -1,9 +1,9 @@
 """Prompt templates for the explainer.
 
 Design principle: the non-evidence parts of every prompt are BYTE-
-IDENTICAL across the DQN and MCTS variants. Only the EVIDENCE section
-differs. This is enforced by a test and is load-bearing for the fairness
-of the DQN-vs-MCTS explanation-quality comparison.
+IDENTICAL across the learned-policy and MCTS variants. Only the
+EVIDENCE section differs. This is enforced by a test and is load-bearing
+for the fairness of the deep-RL-vs-MCTS explanation-quality comparison.
 """
 
 from __future__ import annotations
@@ -48,11 +48,11 @@ Return ONLY the JSON object, no preamble.
 """
 
 
-DQN_EVIDENCE_HEADER = """\
+POLICY_EVIDENCE_HEADER = """\
 EVIDENCE SOURCE: counterfactual Monte Carlo rollouts.
 For each legal action, we forced the agent to take that action once and
-then followed the trained DQN policy to termination. Rollouts were run
-N times per action and aggregated into means, rates, and bootstrap CIs.
+then followed the trained policy to termination. Rollouts were run N
+times per action and aggregated into means, rates, and bootstrap CIs.
 """
 
 MCTS_EVIDENCE_HEADER = """\
@@ -67,8 +67,8 @@ root's children during search.
 
 def build_system_prompt(source: str) -> str:
     """Build the full system prompt for a given evidence source."""
-    if source == "dqn_rollout":
-        evidence_header = DQN_EVIDENCE_HEADER
+    if source in ("policy_rollout", "dqn_rollout"):
+        evidence_header = POLICY_EVIDENCE_HEADER
     elif source == "mcts_tree":
         evidence_header = MCTS_EVIDENCE_HEADER
     else:

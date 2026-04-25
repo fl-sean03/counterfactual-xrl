@@ -1,37 +1,47 @@
 .PHONY: install lint format test test-fast smoke train eval explain report clean
 
-ENV_NAME := xrl
-CONDA_RUN := conda run -n $(ENV_NAME) --no-capture-output
+# Project venv created by `make install`. Override on the command line if
+# you keep the env elsewhere: `make test PY=/path/to/python`.
+VENV ?= .venv
+PY ?= $(VENV)/bin/python
+PIP ?= $(VENV)/bin/pip
 
 install:
-	conda env create -f environment.yml || conda env update -n $(ENV_NAME) -f environment.yml --prune
-	$(CONDA_RUN) pip install -e .
+	python3 -m venv $(VENV)
+	$(PIP) install --upgrade pip wheel setuptools
+	$(PIP) install \
+	    --extra-index-url https://download.pytorch.org/whl/cu128 \
+	    numpy pandas matplotlib seaborn pyyaml tqdm jsonschema pytest pytest-cov \
+	    torch==2.9.1 gymnasium==0.29.1 minigrid==2.3.1 stable-baselines3==2.3.2 \
+	    "anthropic>=0.34.0" "openai>=1.40.0" tensorboard \
+	    ruff==0.6.9 black==24.8.0 mypy==1.11.2
+	$(PIP) install -e .
 
 lint:
-	$(CONDA_RUN) python -m ruff check src tests scripts
-	$(CONDA_RUN) python -m black --check src tests scripts
+	$(PY) -m ruff check src tests scripts
+	$(PY) -m black --check src tests scripts
 
 format:
-	$(CONDA_RUN) python -m ruff check --fix src tests scripts
-	$(CONDA_RUN) python -m black src tests scripts
+	$(PY) -m ruff check --fix src tests scripts
+	$(PY) -m black src tests scripts
 
 test:
-	$(CONDA_RUN) python -m pytest
+	$(PY) -m pytest
 
 test-fast:
-	$(CONDA_RUN) python -m pytest -m "not slow and not api"
+	$(PY) -m pytest -m "not slow and not api"
 
 smoke:
-	$(CONDA_RUN) python scripts/smoke_env.py
+	$(PY) scripts/smoke_env.py
 
 train:
-	$(CONDA_RUN) python scripts/train_dqn.py --config configs/dqn_baseline.yaml
+	$(PY) scripts/train_ppo.py --config configs/ppo_tuned.yaml --n-envs 16
 
 eval:
-	$(CONDA_RUN) python scripts/eval.py
+	$(PY) scripts/eval.py
 
 explain:
-	$(CONDA_RUN) python scripts/explain.py
+	$(PY) scripts/explain.py
 
 report:
 	cd report && latexmk -pdf main.tex

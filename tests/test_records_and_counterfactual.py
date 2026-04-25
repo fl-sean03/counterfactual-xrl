@@ -71,7 +71,7 @@ def test_action_stats_is_serialisable() -> None:
         n_rollouts=100,
     )
     rec = DecisionRecord(
-        source="dqn_rollout",
+        source="policy_rollout",
         agent_id="test",
         state_id="0:0",
         step=0,

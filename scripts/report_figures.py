@@ -30,14 +30,18 @@ def _save(fig, name: str) -> None:
 
 
 def fig_task_performance() -> None:
-    """Bar chart: success rate with 95% bootstrap CI for each agent."""
+    """Bar chart: success rate with 95% bootstrap CI for each agent.
+
+    DQN is intentionally excluded from the headline figure: the three DQN
+    variants collapse to a stall policy on this environment and are
+    reported separately in the "Why DQN was cut" ablation. Run
+    ``scripts/run_dqn_ablation.sh`` to regenerate the ablation numbers
+    in ``results/dqn/`` and ``ablation_summary.csv``.
+    """
     rows = []
     runs = [
         ("Random", ROOT / "results/random/eval_summary.json"),
-        ("DQN (image)", ROOT / "results/dqn/baseline/seed0/eval_summary.json"),
-        ("DQN (symbolic)", ROOT / "results/dqn/symbolic/seed0/eval_summary.json"),
-        ("DQN (shaped)", ROOT / "results/dqn/shaped/seed0/eval_summary.json"),
-        ("PPO", ROOT / "results/ppo/baseline/seed0/eval_summary.json"),
+        ("PPO (tuned)", ROOT / "results/ppo/tuned/seed0/eval_summary.json"),
         ("MCTS", ROOT / "results/mcts/baseline/seed0/eval_summary.json"),
     ]
     for label, p in runs:
@@ -104,53 +108,42 @@ def fig_metric_comparison() -> None:
 
 
 def fig_learning_curves() -> None:
-    """Monitor CSV learning curves, smoothed."""
-    paths = [
-        ("DQN image", ROOT / "results/dqn/baseline/seed0/monitor.csv"),
-        ("DQN symbolic", ROOT / "results/dqn/symbolic/seed0/monitor.csv"),
-        ("DQN shaped", ROOT / "results/dqn/shaped/seed0/monitor.csv"),
-    ]
-    any_plotted = False
+    """PPO learning curve from monitor CSVs (one per parallel env)."""
+    ppo_dir = ROOT / "results/ppo/tuned/seed0"
+    monitor_csvs = sorted(ppo_dir.glob("monitor_*.csv"))
+    if not monitor_csvs:
+        print("fig_learning_curves: no PPO monitor*.csv found, skipping")
+        return
     fig, ax = plt.subplots(figsize=(6.5, 3.5))
-    for label, p in paths:
-        if not p.exists():
-            continue
+    all_returns: list[pd.Series] = []
+    for p in monitor_csvs:
         try:
             df = pd.read_csv(p, skiprows=1)
         except Exception:
             continue
         if "r" not in df.columns:
             continue
-        r = df["r"].to_numpy()
-        window = max(1, len(r) // 50)
-        smoothed = pd.Series(r).rolling(window, min_periods=1).mean()
-        ax.plot(smoothed, label=label, alpha=0.8)
-        any_plotted = True
-    if not any_plotted:
-        print("fig_learning_curves: no monitor.csv found, skipping")
+        all_returns.append(df["r"].reset_index(drop=True))
+    if not all_returns:
+        print("fig_learning_curves: PPO monitor*.csv had no returns column")
         plt.close(fig)
         return
+    combined = pd.concat(all_returns, ignore_index=True)
+    window = max(1, len(combined) // 60)
+    smoothed = combined.rolling(window, min_periods=1).mean()
+    ax.plot(smoothed.to_numpy(), color="#4C72B0", alpha=0.9, label="PPO (tuned)")
     ax.axhline(0, color="k", lw=0.5)
-    ax.set_xlabel("Training episode")
+    ax.set_xlabel("Training episode (across all parallel envs)")
     ax.set_ylabel("Smoothed episode return")
-    ax.set_title("DQN learning curves (rolling mean)")
+    ax.set_title("PPO learning curve (rolling mean)")
     ax.legend(frameon=False)
     _save(fig, "learning_curves")
     plt.close(fig)
 
 
-def table_eval_summary() -> None:
-    """Markdown table the report can include via LaTeX import."""
+def _collect_eval_rows(run_pairs: list[tuple[str, Path]]) -> list[dict]:
     rows = []
-    runs = [
-        ("Random", ROOT / "results/random/eval_summary.json"),
-        ("DQN (image)", ROOT / "results/dqn/baseline/seed0/eval_summary.json"),
-        ("DQN (symbolic)", ROOT / "results/dqn/symbolic/seed0/eval_summary.json"),
-        ("DQN (shaped)", ROOT / "results/dqn/shaped/seed0/eval_summary.json"),
-        ("PPO", ROOT / "results/ppo/baseline/seed0/eval_summary.json"),
-        ("MCTS", ROOT / "results/mcts/baseline/seed0/eval_summary.json"),
-    ]
-    for label, p in runs:
+    for label, p in run_pairs:
         if not p.exists():
             continue
         with open(p) as f:
@@ -165,11 +158,42 @@ def table_eval_summary() -> None:
                 "Steps": f"{d['steps']['mean']:.1f}",
             }
         )
+    return rows
+
+
+def table_eval_summary() -> None:
+    """Headline table: Random / PPO / MCTS only. DQN is in the ablation
+    table (see ``ablation_summary.csv``).
+    """
+    rows = _collect_eval_rows(
+        [
+            ("Random", ROOT / "results/random/eval_summary.json"),
+            ("PPO (tuned)", ROOT / "results/ppo/tuned/seed0/eval_summary.json"),
+            ("MCTS", ROOT / "results/mcts/baseline/seed0/eval_summary.json"),
+        ]
+    )
     if not rows:
         return
-    df = pd.DataFrame(rows)
     out = FIG_DIR / "eval_summary.csv"
-    df.to_csv(out, index=False)
+    pd.DataFrame(rows).to_csv(out, index=False)
+    print(f"  wrote {out}")
+
+
+def table_ablation_summary() -> None:
+    """DQN ablation table referenced from the report's "Why DQN was cut"
+    paragraph. Skipped silently if the DQN runs are not present.
+    """
+    rows = _collect_eval_rows(
+        [
+            ("DQN (image)", ROOT / "results/dqn/baseline/seed0/eval_summary.json"),
+            ("DQN (symbolic)", ROOT / "results/dqn/symbolic/seed0/eval_summary.json"),
+            ("DQN (shaped)", ROOT / "results/dqn/shaped/seed0/eval_summary.json"),
+        ]
+    )
+    if not rows:
+        return
+    out = FIG_DIR / "ablation_summary.csv"
+    pd.DataFrame(rows).to_csv(out, index=False)
     print(f"  wrote {out}")
 
 
@@ -179,6 +203,7 @@ def main() -> None:
     fig_learning_curves()
     fig_metric_comparison()
     table_eval_summary()
+    table_ablation_summary()
 
 
 if __name__ == "__main__":

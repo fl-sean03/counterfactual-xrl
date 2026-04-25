@@ -319,3 +319,69 @@ once PPO passed 50% on eval. DQN on this env simply does not work
 out of the box; RL community consensus.
 **Decision:** PPO replaces DQN in the comparison. The report's
 "deep RL" side is PPO, not DQN.
+
+## 2026-04-25, Performance-matching repair pass
+
+**What:** Re-tuned PPO and re-ran the entire pipeline so PPO and MCTS
+are matched at task-success rather than 0.59-vs-1.00. New PPO config
+(`configs/ppo_tuned.yaml`): 5M steps (was 500k), 16 parallel envs,
+network `[256, 256, 128]` (was `[128, 128]`), linear LR schedule
+3e-4 -> 1e-5 (was constant), linear clip-range schedule 0.2 -> 0.05
+(was constant), `ent_coef=0.005` (was 0.01), distance-shaping
+wrapper enabled (was step-penalty only). Renamed the record source
+tag from `dqn_rollout` to `policy_rollout` (with the legacy alias
+preserved) so the schema is no longer DQN-specific. Dropped DQN
+from the main pipeline (`scripts/reproduce_all.sh`); the three DQN
+ablation variants are still reproducible via
+`scripts/run_dqn_ablation.sh`. Patched `parse_explanation_json` to
+fall back to a brace-substring extract when the LLM returns invalid
+JSON (one record in 290 still failed even after the fallback).
+Patched `scripts/explain.py` to skip-and-log per-record errors
+instead of crashing the batch.
+**Why:** Sean flagged that the previous run's 0.59-vs-1.00
+performance asymmetry made the explanation-quality comparison
+between "competent agent" and "less-competent agent" rather than
+between two paradigms.
+**Where:** Training was run on `dick` (RTX 2080, sm_75) because the
+local box's GTX 1050 is below PyTorch 2.9.1+cu128's sm_70 minimum
+and a CPU-only training attempt earlier in the session crashed the
+local box. Source synced with rsync; results pulled back at the end.
+
+**Result, task performance:**
+
+| Agent       | Success                | Collision | Return | Steps |
+|-------------|------------------------|-----------|--------|-------|
+| Random      | 0.003 [0.000, 0.010]   | 0.997     | -0.994 |  8.3  |
+| PPO (tuned) | 1.000 [1.000, 1.000]   | 0.000     |  0.942 | 16.6  |
+| MCTS        | 1.000 [1.000, 1.000]   | 0.000     |  0.934 | 18.8  |
+
+PPO trained in 560s on the RTX 2080. MCTS eval in 494s.
+
+**Result, explanation quality (n=141 PPO, n=148 MCTS):**
+
+| Metric        | PPO rollout       | MCTS tree         | Old run gap | New gap |
+|---------------|-------------------|-------------------|-------------|---------|
+| Fidelity      | 0.924 [.91, .94]  | 0.924 [.91, .94]  | 0.029       | 0.000   |
+| Soundness     | 0.884 [.86, .91]  | 0.892 [.87, .91]  | 0.032       | 0.008   |
+| Inferability  | 0.979 [.95, 1.00] | 0.986 [.97, 1.00] | 0.014       | 0.007   |
+
+All three CI pairs overlap; no metric exhibits a statistically
+supported difference. Cost: $2.06 generator + $0.16 judge = $2.22
+total, well under cap.
+
+**Interpretation.** The MCTS-tree advantage observed in the previous
+mismatched-performance run was a *competence confound*, not a
+structural property of the search-tree-vs-learned-policy paradigms.
+Once both agents are competent, their evidence sources support
+explanations of statistically indistinguishable quality. This is a
+mildly negative result with respect to the original hypothesis but
+clarifies why prior comparisons in the literature have appeared to
+favour planning: deep-RL agents in those comparisons typically
+weren't yet at the planner's task-performance level.
+
+**Next:** Report main.tex updated (abstract, intro, results,
+threats-to-validity, conclusion, qualitative example all rewritten
+against the new numbers). Tables I and III contain the new
+performance-matched numbers; Table II contains the DQN ablation as
+its own table. PDF build deferred (no LaTeX on either box); user
+to compile locally with `latexmk -pdf` from `report/`.

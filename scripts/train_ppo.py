@@ -19,6 +19,28 @@ from xrl.utils.config import ensure_run_dir, load_config, write_meta
 from xrl.utils.seeding import seed_everything
 
 
+def _parse_schedule(value):
+    """Allow ``"linear:start:end"`` strings in YAML to become callables.
+
+    SB3 accepts a callable ``(progress_remaining: float in [0,1]) -> float``
+    for both ``learning_rate`` and ``clip_range``. Linear-anneal is the
+    standard PPO recipe.
+    """
+    if isinstance(value, str) and value.startswith("linear:"):
+        _, start, end = value.split(":")
+        start_f = float(start)
+        end_f = float(end)
+
+        def schedule(progress_remaining: float) -> float:
+            return end_f + (start_f - end_f) * progress_remaining
+
+        return schedule
+    return value
+
+
+SCHEDULE_KEYS = ("learning_rate", "clip_range")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
@@ -55,12 +77,17 @@ def main() -> None:
     else:
         venv = DummyVecEnv([make_single(0)])
 
+    sb3_kwargs = dict(cfg["sb3_kwargs"])
+    for k in SCHEDULE_KEYS:
+        if k in sb3_kwargs:
+            sb3_kwargs[k] = _parse_schedule(sb3_kwargs[k])
+
     agent = PPOAgent.new(
         venv,
         policy="MlpPolicy",
         seed=seed,
         tensorboard_log=str(run_dir / "tb"),
-        **cfg["sb3_kwargs"],
+        **sb3_kwargs,
     )
 
     t0 = time.time()

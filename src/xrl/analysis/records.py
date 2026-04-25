@@ -1,8 +1,9 @@
 """DecisionRecord schema: the structured evidence we hand to the LLM.
 
-One DecisionRecord per (episode_seed, step). Both the DQN (rollout stats)
-and MCTS (tree stats) pipelines produce records in this same shape, so the
-downstream explainer prompt is identical across agents.
+One DecisionRecord per (episode_seed, step). Both the learned-policy
+(counterfactual rollout stats) and MCTS (tree stats) pipelines produce
+records in this same shape, so the downstream explainer prompt is
+identical across agents.
 """
 
 from __future__ import annotations
@@ -33,9 +34,11 @@ class DecisionRecord:
     """Everything the LLM sees for one decision.
 
     Fields:
-        source: ``"dqn_rollout"``, ``"mcts_tree"``, which evidence pipeline
-                produced the stats.
-        agent_id: free-form identifier (e.g., ``"dqn_baseline_seed0"``).
+        source: ``"policy_rollout"``, ``"mcts_tree"``, which evidence pipeline
+                produced the stats. ``policy_rollout`` covers any learned
+                policy (currently PPO; the legacy DQN ablation uses the
+                same tag).
+        agent_id: free-form identifier (e.g., ``"ppo_tuned"``).
         state_id: ``{episode_seed}:{step}``.
         step: decision index within the episode.
         agent_pos / agent_dir / obstacle_positions: human-readable state
@@ -83,7 +86,7 @@ DECISION_RECORD_SCHEMA: dict[str, Any] = {
         "per_action_stats",
     ],
     "properties": {
-        "source": {"enum": ["dqn_rollout", "mcts_tree"]},
+        "source": {"enum": ["policy_rollout", "mcts_tree", "dqn_rollout"]},
         "agent_id": {"type": "string"},
         "state_id": {"type": "string"},
         "step": {"type": "integer", "minimum": 0},

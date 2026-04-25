@@ -35,19 +35,31 @@ def _record_hash(rec: DecisionRecord) -> str:
 
 
 def parse_explanation_json(text: str) -> dict:
-    """Best-effort JSON parsing, Claude sometimes wraps in fences."""
+    """Best-effort JSON parsing.
+
+    Models occasionally wrap output in ``` fences, prepend chatter, or
+    return invalid JSON (truncated string, trailing comma, unescaped
+    newline inside a value). We try, in order: direct parse, fence
+    strip, brace-substring extract.
+    """
     t = text.strip()
     if t.startswith("```"):
-        # strip ``` or ```json fence
-        t = t.split("```", 2)
-        if len(t) >= 2:
-            body = t[1]
+        parts = t.split("```", 2)
+        if len(parts) >= 2:
+            body = parts[1]
             if body.lstrip().lower().startswith("json"):
                 body = body.split("\n", 1)[1] if "\n" in body else body
-            t = body
-        else:  # pragma: no cover
-            t = "".join(t)
-    return json.loads(t)
+            t = body.strip()
+    try:
+        return json.loads(t)
+    except json.JSONDecodeError:
+        pass
+    # Fall back: extract the largest brace-delimited substring and try again.
+    start = t.find("{")
+    end = t.rfind("}")
+    if start != -1 and end > start:
+        return json.loads(t[start : end + 1])
+    raise json.JSONDecodeError("no JSON object in response", t, 0)
 
 
 def explain(

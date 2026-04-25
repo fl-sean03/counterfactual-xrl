@@ -46,21 +46,32 @@ def main() -> None:
     if args.limit:
         rec_paths = rec_paths[: args.limit]
 
+    import json
+
     written = 0
+    failures: list[tuple[str, str]] = []
     for p in rec_paths:
-        record = load_record(p)
-        exp = explain(record, client, cache_dir=cache_dir)
+        try:
+            record = load_record(p)
+            exp = explain(record, client, cache_dir=cache_dir)
+        except Exception as e:
+            failures.append((str(p), f"{type(e).__name__}: {e}"))
+            continue
         rel = p.relative_to(args.records_dir)
         dst = out_dir / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        import json
-
         with open(dst, "w") as f:
             json.dump(asdict(exp), f, indent=2)
         written += 1
 
     total_cost = getattr(client, "total_cost", 0.0)
     print(f"Wrote {written} explanations ({client.calls} API calls, ${total_cost:.4f} total)")
+    if failures:
+        print(f"Skipped {len(failures)} records due to errors:")
+        for path, err in failures[:10]:
+            print(f"  {path}: {err}")
+        if len(failures) > 10:
+            print(f"  ... and {len(failures) - 10} more")
 
 
 if __name__ == "__main__":

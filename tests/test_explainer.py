@@ -45,13 +45,16 @@ def _make_record(source: str) -> DecisionRecord:
 
 def test_prompt_parity_between_sources() -> None:
     """The non-evidence parts of the system prompt must be byte-identical."""
-    dqn_sys = build_system_prompt("dqn_rollout")
+    policy_sys = build_system_prompt("policy_rollout")
     mcts_sys = build_system_prompt("mcts_tree")
-    assert shared_nonevidence_portion(dqn_sys) == shared_nonevidence_portion(mcts_sys)
+    assert shared_nonevidence_portion(policy_sys) == shared_nonevidence_portion(mcts_sys)
+    # Legacy alias still produces the same shared portion.
+    legacy_sys = build_system_prompt("dqn_rollout")
+    assert shared_nonevidence_portion(legacy_sys) == shared_nonevidence_portion(mcts_sys)
 
 
 def test_explain_end_to_end_with_mock() -> None:
-    rec = _make_record("dqn_rollout")
+    rec = _make_record("policy_rollout")
     client = MockClient()
     exp = explain(rec, client)
     assert exp.chosen_action == 2
