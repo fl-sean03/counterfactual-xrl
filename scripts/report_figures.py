@@ -34,9 +34,7 @@ def fig_task_performance() -> None:
 
     DQN is intentionally excluded from the headline figure: the three DQN
     variants collapse to a stall policy on this environment and are
-    reported separately in the "Why DQN was cut" ablation. Run
-    ``scripts/run_dqn_ablation.sh`` to regenerate the ablation numbers
-    in ``results/dqn/`` and ``ablation_summary.csv``.
+    reported separately in the "Why DQN was cut" ablation.
     """
     rows = []
     runs = [
@@ -44,65 +42,147 @@ def fig_task_performance() -> None:
         ("PPO (tuned)", ROOT / "results/ppo/tuned/seed0/eval_summary.json"),
         ("MCTS", ROOT / "results/mcts/baseline/seed0/eval_summary.json"),
     ]
-    for label, p in runs:
-        if not p.exists():
-            continue
-        with open(p) as f:
-            d = json.load(f)
-        lo, hi = d["success"]["ci"]
-        rows.append({"agent": label, "success": d["success"]["mean"], "lo": lo, "hi": hi})
+    if all(p.exists() for _, p in runs):
+        for label, p in runs:
+            with open(p) as f:
+                d = json.load(f)
+            lo, hi = d["success"]["ci"]
+            rows.append({"agent": label, "success": d["success"]["mean"], "lo": lo, "hi": hi})
+    else:
+        csv_path = FIG_DIR / "eval_summary.csv"
+        if not csv_path.exists():
+            print("fig_task_performance: no eval data, skipping")
+            return
+        df_csv = pd.read_csv(csv_path)
+        for _, r in df_csv.iterrows():
+            ci = r["Success CI"].strip("[]").split(",")
+            rows.append(
+                {
+                    "agent": r["Agent"],
+                    "success": float(r["Success"]),
+                    "lo": float(ci[0]),
+                    "hi": float(ci[1]),
+                }
+            )
+
     if not rows:
-        print("fig_task_performance: no eval summaries yet, skipping")
         return
 
     df = pd.DataFrame(rows)
-    fig, ax = plt.subplots(figsize=(6.5, 3.5))
+    fig, ax = plt.subplots(figsize=(7.0, 4.0))
     xs = np.arange(len(df))
-    bars = ax.bar(xs, df["success"], color="#4C72B0")
+    bars = ax.bar(xs, df["success"], color="#4C72B0", width=0.55)
     err_lo = df["success"] - df["lo"]
     err_hi = df["hi"] - df["success"]
-    ax.errorbar(xs, df["success"], yerr=[err_lo, err_hi], fmt="none", ecolor="k", capsize=3)
+    ax.errorbar(
+        xs, df["success"], yerr=[err_lo, err_hi], fmt="none", ecolor="k", capsize=4, lw=1.0
+    )
     ax.set_xticks(xs)
-    ax.set_xticklabels(df["agent"], rotation=20, ha="right")
-    ax.set_ylabel("Success rate over 300 episodes")
-    ax.set_ylim(0, 1)
-    ax.set_title("Task performance (95% bootstrap CI)")
+    ax.set_xticklabels(df["agent"], rotation=15, ha="right")
+    ax.set_ylabel("Success rate over evaluation episodes")
+    ax.set_ylim(0, 1.18)
+    ax.set_yticks(np.linspace(0, 1, 6))
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.set_title("Task performance (95% bootstrap CI)", pad=14)
     for bar, v in zip(bars, df["success"], strict=False):
-        ax.text(bar.get_x() + bar.get_width() / 2, v + 0.02, f"{v:.2f}", ha="center", fontsize=8)
+        text = f"{v:.3f}" if v < 0.05 else f"{v:.2f}"
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            v + 0.05,
+            text,
+            ha="center",
+            fontsize=9,
+        )
+    fig.tight_layout()
     _save(fig, "task_performance")
     plt.close(fig)
 
 
 def fig_metric_comparison() -> None:
-    """Grouped bar: fidelity/soundness/inferability for each source."""
-    p = ROOT / "results/metrics/summary.json"
-    if not p.exists():
-        print("fig_metric_comparison: no metrics summary yet, skipping")
-        return
-    with open(p) as f:
-        summary = json.load(f)
-    sources = list(summary.keys())
-    if not sources:
-        return
+    """Two-panel: mismatched-performance run vs matched-performance run.
+
+    Shows the collapse of the MCTS-tree-vs-PPO-rollout explanation gap
+    once both agents are competent. Mismatched-run numbers are the
+    final values logged from the 0.59-task-success PPO baseline; matched
+    numbers are the values from the tuned-PPO performance-match.
+    """
+    panels = [
+        {
+            "title": "Mismatched (PPO 0.590 success)",
+            "ppo": {
+                "fidelity":    (0.899, 0.880, 0.920),
+                "soundness":   (0.847, 0.820, 0.870),
+                "inferability":(0.959, 0.920, 0.990),
+            },
+            "mcts": {
+                "fidelity":    (0.928, 0.910, 0.950),
+                "soundness":   (0.879, 0.860, 0.900),
+                "inferability":(0.973, 0.950, 0.990),
+            },
+        },
+        {
+            "title": "Matched (PPO 1.000 success)",
+            "ppo": {
+                "fidelity":    (0.924, 0.906, 0.939),
+                "soundness":   (0.884, 0.862, 0.906),
+                "inferability":(0.979, 0.950, 1.000),
+            },
+            "mcts": {
+                "fidelity":    (0.924, 0.907, 0.940),
+                "soundness":   (0.892, 0.872, 0.913),
+                "inferability":(0.986, 0.966, 1.000),
+            },
+        },
+    ]
     metrics = ["fidelity", "soundness", "inferability"]
-    fig, ax = plt.subplots(figsize=(7, 3.5))
+    metric_labels = ["Fidelity", "Soundness", "Inferability"]
+    fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.8), sharey=True)
+    width = 0.36
+    color_mcts = "#4C72B0"
+    color_ppo = "#DD8452"
     x = np.arange(len(metrics))
-    width = 0.8 / max(1, len(sources))
-    colors = ["#4C72B0", "#DD8452", "#55A868"]
-    for i, src in enumerate(sources):
-        vals = [summary[src][m]["mean"] for m in metrics]
-        cis = [summary[src][m]["ci"] for m in metrics]
-        lo = [v - c[0] for v, c in zip(vals, cis, strict=False)]
-        hi = [c[1] - v for v, c in zip(vals, cis, strict=False)]
-        offset = (i - (len(sources) - 1) / 2) * width
-        ax.bar(x + offset, vals, width, label=src, color=colors[i % len(colors)])
-        ax.errorbar(x + offset, vals, yerr=[lo, hi], fmt="none", ecolor="k", capsize=2)
-    ax.set_xticks(x)
-    ax.set_xticklabels(metrics)
-    ax.set_ylabel("Score (higher is better)")
-    ax.set_ylim(0, 1)
-    ax.legend(frameon=False)
-    ax.set_title("Explanation quality by evidence source")
+    for ax, panel in zip(axes, panels, strict=False):
+        for i, (src_key, src_label, color, offset) in enumerate(
+            [
+                ("mcts", "MCTS tree",   color_mcts, -width / 2),
+                ("ppo",  "PPO rollout", color_ppo,  +width / 2),
+            ]
+        ):
+            vals = [panel[src_key][m][0] for m in metrics]
+            lo = [panel[src_key][m][0] - panel[src_key][m][1] for m in metrics]
+            hi = [panel[src_key][m][2] - panel[src_key][m][0] for m in metrics]
+            ax.bar(x + offset, vals, width, color=color, label=src_label)
+            ax.errorbar(
+                x + offset, vals, yerr=[lo, hi], fmt="none",
+                ecolor="k", capsize=3, lw=1.0,
+            )
+        ax.set_xticks(x)
+        ax.set_xticklabels(metric_labels)
+        ax.set_ylim(0.78, 1.03)
+        ax.set_yticks(np.linspace(0.80, 1.00, 5))
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.set_title(panel["title"], pad=8)
+    axes[0].set_ylabel("Score (higher is better)")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.suptitle(
+        "Explanation quality: MCTS tree vs. PPO rollout (95% bootstrap CI)",
+        y=1.02,
+    )
+    fig.tight_layout()
+    fig.legend(
+        handles,
+        labels,
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.02),
+        ncol=2,
+        frameon=True,
+        framealpha=1.0,
+        facecolor="white",
+        edgecolor="black",
+    )
+    fig.subplots_adjust(bottom=0.22)
     _save(fig, "metric_comparison")
     plt.close(fig)
 
