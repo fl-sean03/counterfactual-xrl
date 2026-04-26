@@ -70,43 +70,12 @@ numbers that actually match the underlying evidence more often than
 learned-policy-sourced explanations do, and are the rationales they
 produce more sound?
 
-To address this question, we construct a shared
-evidence-to-explanation pipeline and apply it to two
-\emph{performance-matched} agents on
-\texttt{MiniGrid-Dynamic-Obstacles-8x8}, a stochastic gridworld whose
-adversarial obstacle dynamics are well-suited to separating competent
-agents from incompetent ones. PPO represents the learned-policy side;
-a from-scratch UCT planner represents the search side. At each real
-decision state, a structured decision record is extracted, passed
-through an identically-formatted LLM prompt that differs only in its
-evidence-source header, and scored on three automated metrics
-(fidelity, soundness, and post-hoc inferability) defined in
-Section~\ref{sec:metrics}.
-
-The headline finding is that, once both agents reach the same
-task-success rate, the two evidence sources support explanations of
-statistically indistinguishable quality on every metric we measure.
-A contrast against an earlier run at mismatched task performance,
-where MCTS-tree evidence held a small but statistically supported
-lead on fidelity and soundness, suggests that the apparent paradigm
-difference reported in the literature is largely a competence
-confound rather than a structural property. Specific numbers and
-the matched-vs-mismatched comparison are reported in
-Section~\ref{sec:results}.
-
-\paragraph{Contributions.}
-This work contributes: (1) a from-scratch MCTS planner for
-\texttt{MiniGrid-Dynamic-Obstacles-8x8} that emits per-decision
-tree-statistics in a format suitable for downstream explanation;
-(2) a policy-agnostic counterfactual-rollout framework that produces
-learned-policy-side evidence in a structurally identical format to the
-MCTS tree; (3) three automated metrics, fidelity, soundness, and
-post-hoc inferability, implemented with bootstrap confidence intervals;
-and (4) an empirical comparison of the two paradigms on 289 matched
-decision states drawn from two \emph{performance-matched} competent
-agents (both at 1.000 task-success), using a real LLM generator and a
-held-out LLM judge, which finds no statistically supported
-explanation-quality advantage for the search tree.
+Comparing the two paradigms head-to-head is awkward because they
+emit different artifacts. A learned policy gives back network
+weights and an action distribution; an MCTS planner gives back a
+tree of visit counts and child statistics. To put them side by
+side, both need to be expressed in the same evidence schema. The
+rest of the paper builds that schema and uses it.
 
 \section{Background and Related Work}
 \label{sec:related}
@@ -220,6 +189,18 @@ position); the MCTS planner plans on the full ground-truth state via
 a deep-copied simulator. Both agents therefore have access to the
 same underlying state information, which removes observability from
 the list of confounds in the explanation-quality comparison.
+
+\paragraph{Scope.} Three scope choices shape what follows. The
+deep-RL agent is PPO, not DQN: a value-based baseline collapsed to
+a near-stall policy under the raw MiniGrid reward, and switching to
+a policy-gradient method was the only way we got a competent
+learned agent on this environment. Both agents are evaluated on the
+flat symbolic encoding above rather than on the default partial
+view, which keeps observability out of the comparison. And the
+explanation-quality comparison is run at two operating points,
+mismatched and matched task performance, rather than at one; the
+contrast between the two is what isolates agent competence from the
+evidence-source choice.
 
 \section{Solution Approach}
 \label{sec:approach}
