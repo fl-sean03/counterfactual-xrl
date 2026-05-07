@@ -24,7 +24,7 @@ from xrl.agents.mcts import MCTS, MCTSConfig
 from xrl.agents.ppo import PPOAgent
 from xrl.analysis.counterfactual import counterfactual_rollouts
 from xrl.analysis.records import DecisionRecord, save_record, validate_record_dict
-from xrl.analysis.tree_stats import mcts_root_to_action_stats
+from xrl.analysis.tree_stats import mcts_root_to_action_stats, mcts_tree_diagnostics
 from xrl.envs.simulator import Simulator
 from xrl.envs.wrappers import ENV_ID, FlatSymbolicObsWrapper, make_env
 from xrl.utils.config import load_config
@@ -73,6 +73,8 @@ def build_dqn_records(
     out_dir: Path,
     max_steps_per_traj: int = 20,
     rollout_cap: int = 50,
+    gamma: float = 0.99,
+    step_penalty: float = 0.01,
 ) -> int:
     with open(run_dir / "meta.json") as f:
         meta = json.load(f)
@@ -99,6 +101,8 @@ def build_dqn_records(
                 n_per_action=n_per_action,
                 seed=seed * 1000 + step,
                 max_steps=rollout_cap,
+                gamma=gamma,
+                step_penalty=step_penalty,
             )
             sim.close()
             action = dqn.predict(obs)
@@ -136,6 +140,8 @@ def build_ppo_records(
     max_steps_per_traj: int = 20,
     rollout_cap: int = 50,
     stochastic_rollouts: bool = True,
+    gamma: float = 0.99,
+    step_penalty: float = 0.01,
 ) -> int:
     with open(run_dir / "meta.json") as f:
         meta = json.load(f)
@@ -167,6 +173,8 @@ def build_ppo_records(
                 n_per_action=n_per_action,
                 seed=seed * 1000 + step,
                 max_steps=rollout_cap,
+                gamma=gamma,
+                step_penalty=step_penalty,
             )
             sim.close()
             action = ppo.predict(obs)
@@ -186,6 +194,8 @@ def build_ppo_records(
                     "policy": "PPO",
                     "rollouts_stochastic": bool(stochastic_rollouts),
                     "n_per_action": int(n_per_action),
+                    "gamma": float(gamma),
+                    "step_penalty": float(step_penalty),
                 },
             )
             d = rec.to_dict()
@@ -221,6 +231,7 @@ def build_mcts_records(
             sim.close()
             u = env.unwrapped
             stats = mcts_root_to_action_stats(root, legal_actions=[0, 1, 2])
+            tree_diag = mcts_tree_diagnostics(root, legal_actions=[0, 1, 2])
             rec = DecisionRecord(
                 source="mcts_tree",
                 agent_id=agent_id,
@@ -236,6 +247,8 @@ def build_mcts_records(
                     "root_value": root.mean_value,
                     "budget": cfg["mcts"]["sims_per_decision"],
                     "rollout_policy": cfg["mcts"]["rollout_policy"],
+                    "gamma": cfg["mcts"].get("gamma", 0.99),
+                    "tree_diagnostics": tree_diag,
                 },
             )
             d = rec.to_dict()
@@ -267,6 +280,18 @@ def main() -> None:
         help="use PPO argmax (old behaviour). Default is stochastic sampling.",
     )
     ap.add_argument("--out-dir", default="results/decision_records")
+    ap.add_argument(
+        "--gamma",
+        type=float,
+        default=0.99,
+        help="discount factor for PPO/DQN counterfactual rollouts (must match agent training).",
+    )
+    ap.add_argument(
+        "--step-penalty",
+        type=float,
+        default=0.01,
+        help="per-non-terminal-step reward penalty (must match agent training MDP).",
+    )
     args = ap.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -284,6 +309,8 @@ def main() -> None:
             out_dir,
             max_steps_per_traj=args.max_steps,
             rollout_cap=args.rollout_cap,
+            gamma=args.gamma,
+            step_penalty=args.step_penalty,
         )
         print(f"DQN: wrote {n} records to {out_dir / aid}")
 
@@ -298,6 +325,8 @@ def main() -> None:
             max_steps_per_traj=args.max_steps,
             rollout_cap=args.rollout_cap,
             stochastic_rollouts=not args.ppo_deterministic_rollouts,
+            gamma=args.gamma,
+            step_penalty=args.step_penalty,
         )
         print(
             f"PPO: wrote {n} records to {out_dir / aid} "

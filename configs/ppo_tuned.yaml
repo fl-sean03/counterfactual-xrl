@@ -1,7 +1,16 @@
 agent: ppo
 obs_mode: symbolic
-shaping: true
-shaping_coef: 0.02
+# Reviewer-driven MDP unification: the only reward modification kept
+# is a flat -0.01 per non-terminal step. Distance-based potential
+# shaping is dropped. Crucially, MCTS and the counterfactual-rollout
+# pipeline now apply the SAME step penalty (configs/mcts_baseline.yaml
+# and scripts/build_decision_records.py --step-penalty), so PPO and
+# MCTS optimize the identical MDP. Without the step penalty, gamma<1
+# alone does not break the stall-vs-collision local optimum on this
+# sparse-reward env: stall return is 0 regardless of gamma, collision
+# return is -1, and PPO converges to stall.
+shaping: false
+shaping_coef: 0.0
 step_penalty: 0.01
 
 seed: 0

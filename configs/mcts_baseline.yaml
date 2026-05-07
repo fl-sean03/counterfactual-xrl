@@ -8,7 +8,8 @@ mcts:
   c_ucb: 1.4142135624   # sqrt(2)
   max_rollout_depth: 60
   rollout_policy: greedy   # "random" or "greedy"
-  gamma: 1.0
+  gamma: 0.99           # matches PPO; addresses reviewer concern about MDP equality
+  step_penalty: 0.01    # matches PPO; both solvers see the same per-step cost
 
 eval:
   n_episodes: 100   # MCTS is slower per step than DQN; start small

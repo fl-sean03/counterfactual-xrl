@@ -238,36 +238,41 @@ class MockClient:
             (s for s in stats if s.get("action") == chosen), stats[0] if stats else {}
         )
         alts = [s for s in stats if s.get("action") != chosen]
-        best_alt = max(alts, key=lambda s: s.get("mean_return", -1e9)) if alts else {}
-        sr = chosen_stats.get("success_rate", 0.0)
-        cr = chosen_stats.get("collision_rate", 0.0)
+        best_alt = (
+            max(alts, key=lambda s: s.get("discounted_return", -1e9)) if alts else {}
+        )
+        dr = chosen_stats.get("discounted_return", 0.0)
+        alt_dr = best_alt.get("discounted_return", 0.0)
         response = {
             "rationale": (
                 f"Action {chosen} was chosen because its counterfactual "
-                f"success rate of {sr:.2f} exceeds the alternatives "
-                f"(best alternative: {best_alt.get('action', 'n/a')} at "
-                f"{best_alt.get('success_rate', 0.0):.2f})."
+                f"discounted return of {dr:.2f} exceeds the alternatives "
+                f"(best alternative: action {best_alt.get('action', 'n/a')} "
+                f"at {alt_dr:.2f})."
             ),
             "counterfactual": (
                 f"If the agent had taken action {best_alt.get('action', 'n/a')} "
-                f"instead, the collision rate would have been "
-                f"{best_alt.get('collision_rate', 0.0):.2f}."
+                f"instead, the expected discounted return would have been "
+                f"{alt_dr:.2f}."
             ),
-            "confidence": min(1.0, max(0.0, sr)),
+            "confidence": min(1.0, max(0.0, (dr + 1.0) / 2.0)),
             "claims": [
                 {
-                    "text": f"action {chosen} success rate = {sr:.2f}",
-                    "type": "rate",
+                    "text": f"action {chosen} discounted return = {dr:.2f}",
+                    "type": "value",
                     "action": chosen,
-                    "metric": "success_rate",
-                    "value": sr,
+                    "metric": "discounted_return",
+                    "value": dr,
                 },
                 {
-                    "text": f"action {chosen} collision rate = {cr:.2f}",
-                    "type": "rate",
-                    "action": chosen,
-                    "metric": "collision_rate",
-                    "value": cr,
+                    "text": (
+                        f"action {best_alt.get('action', 'n/a')} discounted "
+                        f"return = {alt_dr:.2f}"
+                    ),
+                    "type": "comparison",
+                    "action": best_alt.get("action", chosen),
+                    "metric": "discounted_return",
+                    "value": alt_dr,
                 },
             ],
         }

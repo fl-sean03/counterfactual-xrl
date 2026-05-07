@@ -35,6 +35,10 @@ class Node:
     action_from_parent: int | None = None
     visits: int = 0
     value_sum: float = 0.0
+    # Sum of squared returns over rollouts through this node. Used to
+    # compute per-child variance / std at explanation time without
+    # storing per-rollout returns. Reviewer-driven addition.
+    value_sum_sq: float = 0.0
     children: dict[int, Node] = field(default_factory=dict)
     # Per-action counters aggregated across all simulations through this
     # node, used for explanation evidence (not for UCB itself).
@@ -45,6 +49,14 @@ class Node:
     @property
     def mean_value(self) -> float:
         return self.value_sum / self.visits if self.visits > 0 else 0.0
+
+    @property
+    def value_variance(self) -> float:
+        if self.visits == 0:
+            return 0.0
+        m = self.mean_value
+        v = self.value_sum_sq / self.visits - m * m
+        return float(max(v, 0.0))
 
 
 def ucb1_score(child: Node, parent_visits: int, c: float) -> float:
@@ -91,6 +103,11 @@ class MCTSConfig:
     max_rollout_depth: int = 50
     rollout_policy: str = "greedy"
     gamma: float = 1.0
+    # Flat per-non-terminal-step reward modification. Set to match the
+    # PPO training MDP so both solvers optimize the same objective.
+    # Without this, gamma<1 alone cannot prevent the stall-vs-collision
+    # local optimum on this sparse-reward env (stall return is 0).
+    step_penalty: float = 0.0
 
 
 class MCTS:
@@ -110,9 +127,11 @@ class MCTS:
         for _ in range(self.cfg.max_rollout_depth):
             action = policy(sim)
             r = sim.step(action)
-            total += discount * r.reward
+            terminal = r.terminated or r.truncated
+            shaped_reward = r.reward - (self.cfg.step_penalty if not terminal else 0.0)
+            total += discount * shaped_reward
             discount *= self.cfg.gamma
-            if r.terminated or r.truncated:
+            if terminal:
                 success = r.terminated and r.reward > 0
                 collision = r.terminated and r.reward < 0
                 break
@@ -137,12 +156,13 @@ class MCTS:
                 key=lambda a: ucb1_score(node.children[a], node.visits, self.cfg.c_ucb),
             )
             r = sim.step(best_action)
-            reward = r.reward
+            terminal_step = r.terminated or r.truncated
+            reward = r.reward - (self.cfg.step_penalty if not terminal_step else 0.0)
             trajectory_return += discount * reward
             discount *= self.cfg.gamma
             node = node.children[best_action]
             path.append(node)
-            if r.terminated or r.truncated:
+            if terminal_step:
                 terminated = r.terminated
                 truncated = r.truncated
                 node.terminal = True
@@ -155,12 +175,13 @@ class MCTS:
             # Pick one child to roll out through.
             chosen_action = int(np.random.randint(0, len(node.children)))
             r = sim.step(chosen_action)
-            reward = r.reward
+            terminal_step = r.terminated or r.truncated
+            reward = r.reward - (self.cfg.step_penalty if not terminal_step else 0.0)
             trajectory_return += discount * reward
             discount *= self.cfg.gamma
             child = node.children[chosen_action]
             path.append(child)
-            if r.terminated or r.truncated:
+            if terminal_step:
                 terminated = r.terminated
                 truncated = r.truncated
                 child.terminal = True
@@ -182,6 +203,7 @@ class MCTS:
         for n in path:
             n.visits += 1
             n.value_sum += total_return
+            n.value_sum_sq += total_return * total_return
             if success:
                 n.success_count += 1
             if collision:

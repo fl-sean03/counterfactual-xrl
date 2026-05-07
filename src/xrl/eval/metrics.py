@@ -39,20 +39,63 @@ class MetricScores:
 
 
 def _find_stat(record: DecisionRecord, action: int) -> dict | None:
+    """Build a flat dict of every per-action numerical field a claim
+    could reference, drawn from both ``per_action_stats`` and the
+    ``agent_metadata.tree_diagnostics`` block (MCTS only).
+
+    The fidelity scorer matches ``claim["metric"]`` against this dict;
+    any field present here is checkable. Aliases (``visits``,
+    ``visit_count``, ``mean_value``) are added because LLMs use the
+    natural-language form of the field as often as the schema name.
+    """
+    base: dict[str, float] | None = None
     for s in record.per_action_stats:
         if s.action == action:
-            return {
-                "mean_return": s.mean_return,
-                "success_rate": s.success_rate,
-                "collision_rate": s.collision_rate,
+            base = {
+                "discounted_return": s.discounted_return,
                 "std_return": s.std_return,
                 "mean_steps_to_end": s.mean_steps_to_end,
+                "n_rollouts": s.n_rollouts,
+                # Common LLM-spoken aliases for n_rollouts.
+                "visits": s.n_rollouts,
+                "visit_count": s.n_rollouts,
+                "root_child_visits": s.n_rollouts,
+                # Common LLM-spoken alias for discounted_return.
+                "mean_value": s.discounted_return,
+                "mean_return": s.discounted_return,
+                "root_child_discounted_return": s.discounted_return,
             }
-    return None
+            break
+    if base is None:
+        return None
+
+    # MCTS-only: pull anything else the explainer might cite from the
+    # tree-diagnostics block.
+    diag = (record.agent_metadata or {}).get("tree_diagnostics") or {}
+    var_by_action = diag.get("value_variance_by_action") or {}
+    if str(action) in var_by_action:
+        base["value_variance"] = float(var_by_action[str(action)])
+    pvs = diag.get("principal_variations") or []
+    for pv in pvs:
+        if int(pv.get("first_action", -1)) == action:
+            if "root_child_visits" in pv:
+                base["root_child_visits"] = int(pv["root_child_visits"])
+            if "root_child_discounted_return" in pv:
+                base["root_child_discounted_return"] = float(
+                    pv["root_child_discounted_return"]
+                )
+            break
+    return base
 
 
 def fidelity_score(record: DecisionRecord, explanation: Explanation, tol: float = 0.1) -> float:
-    """Fraction of numerical claims that match the record within tol."""
+    """Fraction of numerical claims that match the record within tol.
+
+    Malformed claims (missing fields, non-scalar values, unknown
+    metric names, or actions not in the record) are counted toward the
+    denominator but never as hits, so a hallucination still hurts the
+    score.
+    """
     if not explanation.claims:
         return 0.0
     hits = 0
@@ -62,10 +105,21 @@ def fidelity_score(record: DecisionRecord, explanation: Explanation, tol: float 
         value = claim.get("value")
         if action is None or metric is None or value is None:
             continue
-        stat = _find_stat(record, int(action))
-        if stat is None or metric not in stat:
+        try:
+            action_i = int(action)
+            value_f = float(value)
+        except (TypeError, ValueError):
+            # E.g. the LLM emitted a list-valued "value" or a non-numeric
+            # action label. Counts as a non-hit, not a crash.
             continue
-        if abs(stat[metric] - float(value)) <= tol:
+        stat = _find_stat(record, action_i)
+        if stat is None or metric not in stat or stat[metric] is None:
+            continue
+        try:
+            ref = float(stat[metric])
+        except (TypeError, ValueError):
+            continue
+        if abs(ref - value_f) <= tol:
             hits += 1
     return hits / max(1, len(explanation.claims))
 
@@ -104,10 +158,27 @@ Reply with ONLY a single digit 0, 1, or 2. No other text.
 """
 
 
+_ACTION_NAMES = {0: "turn_left", 1: "turn_right", 2: "move_forward"}
+
+
 def _scrub_action_mentions(text: str, action: int) -> str:
-    """Remove ``action {action}`` patterns so the judge can't cheat."""
-    pattern = re.compile(rf"action[\s]*{action}\b", flags=re.IGNORECASE)
-    return pattern.sub("[CHOSEN]", text)
+    """Remove integer and verbal references to the chosen action.
+
+    Earlier versions of the inferability metric only scrubbed the
+    integer ``action {n}`` pattern, but the verbal names
+    (``move_forward``, ``turn_right``) appeared verbatim in most
+    rationales and effectively gave the judge the answer. This stricter
+    version also scrubs the name corresponding to the chosen action and
+    its space-separated variant.
+    """
+    out = re.sub(rf"action[\s]*{action}\b", "[CHOSEN]", text, flags=re.IGNORECASE)
+    name = _ACTION_NAMES.get(action)
+    if name:
+        out = re.sub(rf"\b{re.escape(name)}\b", "[CHOSEN]", out, flags=re.IGNORECASE)
+        # Some explanations spell the name with a space rather than an underscore.
+        spaced = name.replace("_", " ")
+        out = re.sub(rf"\b{re.escape(spaced)}\b", "[CHOSEN]", out, flags=re.IGNORECASE)
+    return out
 
 
 def soundness_score(

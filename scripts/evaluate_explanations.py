@@ -4,13 +4,15 @@ Usage:
     python scripts/evaluate_explanations.py \
         --records-dir results/decision_records \
         --explanations-dir results/explanations \
-        --out-dir results/metrics
+        --out-dir results/metrics \
+        [--workers 8]
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from pathlib import Path
 
@@ -29,6 +31,17 @@ def load_explanation(path: Path) -> Explanation:
     return Explanation(**d)
 
 
+def _score_one(rec_path: Path, records_dir: Path, expl_dir: Path, judge):
+    rel = rec_path.relative_to(records_dir)
+    exp_path = expl_dir / rel
+    if not exp_path.exists():
+        return None
+    record = load_record(rec_path)
+    exp = load_explanation(exp_path)
+    scores = score_pair(record, exp, judge)
+    return record, scores
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--records-dir", required=True)
@@ -36,6 +49,12 @@ def main() -> None:
     ap.add_argument("--out-dir", default="results/metrics")
     ap.add_argument("--config", default="configs/explainer.yaml")
     ap.add_argument("--force-mock", action="store_true")
+    ap.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="parallel judge calls (gpt-4o-mini is thread-safe via the openai SDK)",
+    )
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -57,14 +76,12 @@ def main() -> None:
     per_record_rows: list[dict] = []
     by_source: dict[str, list] = {}
 
-    for rec_path in sorted(records_dir.rglob("*.json")):
-        rel = rec_path.relative_to(records_dir)
-        exp_path = expl_dir / rel
-        if not exp_path.exists():
-            continue
-        record = load_record(rec_path)
-        exp = load_explanation(exp_path)
-        scores = score_pair(record, exp, judge)
+    rec_paths = sorted(records_dir.rglob("*.json"))
+
+    def _absorb(result):
+        if result is None:
+            return
+        record, scores = result
         per_record_rows.append(
             {
                 "agent_id": record.agent_id,
@@ -75,6 +92,24 @@ def main() -> None:
             }
         )
         by_source.setdefault(record.source, []).append(scores)
+
+    n_workers = max(1, int(args.workers))
+    if args.force_mock or n_workers == 1:
+        for rec_path in rec_paths:
+            _absorb(_score_one(rec_path, records_dir, expl_dir, judge))
+    else:
+        with ThreadPoolExecutor(max_workers=n_workers) as pool:
+            futures = {
+                pool.submit(_score_one, p, records_dir, expl_dir, judge): p
+                for p in rec_paths
+            }
+            for i, fut in enumerate(as_completed(futures), 1):
+                try:
+                    _absorb(fut.result())
+                except Exception as e:  # noqa: BLE001
+                    print(f"  [warn] {futures[fut]}: {type(e).__name__}: {e}", flush=True)
+                if i % 25 == 0:
+                    print(f"  {i}/{len(rec_paths)} judged", flush=True)
 
     df = pd.DataFrame(per_record_rows)
     df.to_csv(out_dir / "per_record.csv", index=False)

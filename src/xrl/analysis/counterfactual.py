@@ -7,6 +7,8 @@ termination. Repeating that N times gives us the distribution of outcomes
 conditional on the first action.
 
 The resulting ``ActionStats`` are what the explainer reads as evidence.
+The primary metric is ``discounted_return`` (gamma-discounted), since
+that is what an MDP agent actually optimizes. Reviewer-driven change.
 """
 
 from __future__ import annotations
@@ -36,22 +38,38 @@ def rollout_from(
     policy_predict: Callable[[Any], int],
     obs_fn: Callable[[Simulator], Any],
     max_steps: int = 256,
-) -> tuple[float, bool, bool, int]:
+    gamma: float = 1.0,
+    discount_start: float = 1.0,
+    step_penalty: float = 0.0,
+) -> tuple[float, float, bool, bool, int]:
     """Run one rollout through the given simulator with the given policy.
 
-    Returns ``(total_return, success, collision, steps)``.
+    Returns ``(undiscounted_total, discounted_total, success, collision, steps)``.
+
+    ``discount_start`` is the discount factor that applies to the *first*
+    reward in this rollout segment. Callers that have already taken steps
+    (e.g. forced the first counterfactual action) should pass
+    ``gamma**1 = gamma`` for ``discount_start`` so the second-step reward
+    is multiplied by gamma**1. ``step_penalty`` is the same flat per-
+    non-terminal-step cost applied during PPO training and MCTS planning.
     """
-    total = 0.0
+    undisc = 0.0
+    disc = 0.0
+    discount = discount_start
     for step in range(max_steps):
         obs = obs_fn(sim)
         action = policy_predict(obs)
         r = sim.step(int(action))
-        total += r.reward
-        if r.terminated or r.truncated:
+        terminal = r.terminated or r.truncated
+        shaped = r.reward - (step_penalty if not terminal else 0.0)
+        undisc += shaped
+        disc += discount * shaped
+        discount *= gamma
+        if terminal:
             success = r.terminated and r.reward > 0
             collision = r.terminated and r.reward < 0
-            return total, success, collision, step + 1
-    return total, False, False, max_steps
+            return undisc, disc, success, collision, step + 1
+    return undisc, disc, False, False, max_steps
 
 
 def counterfactual_rollouts(
@@ -61,52 +79,55 @@ def counterfactual_rollouts(
     n_per_action: int = 100,
     seed: int = 0,
     max_steps: int = 256,
+    gamma: float = 0.99,
+    step_penalty: float = 0.01,
 ) -> list[ActionStats]:
     """For each legal action, force it from ``root_sim`` and roll out N times.
 
-    The policy is used for steps ≥ 1. Rollouts through the stochastic
-    obstacle transitions are seeded so re-runs are reproducible.
+    The policy is used for steps >= 1. Rollouts through the stochastic
+    obstacle transitions are seeded so re-runs are reproducible. Returns
+    are gamma-discounted and include the same per-step penalty PPO
+    trained against and MCTS plans against, so all three sides see the
+    identical MDP.
     """
     rng = np.random.default_rng(seed)
     results: list[ActionStats] = []
     for a in root_sim.legal_actions():
-        returns = np.zeros(n_per_action)
-        successes = np.zeros(n_per_action)
-        collisions = np.zeros(n_per_action)
+        disc_returns = np.zeros(n_per_action)
         steps = np.zeros(n_per_action)
 
         for i in range(n_per_action):
-            # Fresh branch per rollout.
             sim = root_sim.clone()
-            # Force first action from this counterfactual branch.
             r0 = sim.step(a)
-            total = r0.reward
-            if r0.terminated or r0.truncated:
-                returns[i] = total
-                successes[i] = float(r0.terminated and r0.reward > 0)
-                collisions[i] = float(r0.terminated and r0.reward < 0)
+            terminal0 = r0.terminated or r0.truncated
+            shaped0 = r0.reward - (step_penalty if not terminal0 else 0.0)
+            # Forced first action: discount=1 for the first reward.
+            disc_total = 1.0 * shaped0
+            if terminal0:
+                disc_returns[i] = disc_total
                 steps[i] = 1
                 sim.close()
                 continue
-            # Remaining rollout under policy.
-            sub_ret, succ, coll, n_steps = rollout_from(
-                sim, policy_predict, obs_fn, max_steps=max_steps - 1
+            # Remaining rollout under policy. Second reward gets gamma**1.
+            _, sub_disc, _, _, n_steps = rollout_from(
+                sim,
+                policy_predict,
+                obs_fn,
+                max_steps=max_steps - 1,
+                gamma=gamma,
+                discount_start=gamma,
+                step_penalty=step_penalty,
             )
-            returns[i] = total + sub_ret
-            successes[i] = float(succ)
-            collisions[i] = float(coll)
+            disc_returns[i] = disc_total + sub_disc
             steps[i] = n_steps + 1
             sim.close()
-        # Reseed per action so CIs are reproducible per action.
+
         stats = ActionStats(
             action=a,
-            mean_return=float(returns.mean()),
-            std_return=float(returns.std()),
-            success_rate=float(successes.mean()),
-            collision_rate=float(collisions.mean()),
+            discounted_return=float(disc_returns.mean()),
+            std_return=float(disc_returns.std()),
             mean_steps_to_end=float(steps.mean()),
-            success_ci=_bootstrap_ci(successes, seed=int(rng.integers(0, 2**31 - 1))),
-            collision_ci=_bootstrap_ci(collisions, seed=int(rng.integers(0, 2**31 - 1))),
+            return_ci=_bootstrap_ci(disc_returns, seed=int(rng.integers(0, 2**31 - 1))),
             n_rollouts=n_per_action,
         )
         results.append(stats)

@@ -19,13 +19,10 @@ def _make_record(source: str) -> DecisionRecord:
     stats = [
         ActionStats(
             action=a,
-            mean_return=0.8 if a == 2 else 0.1,
+            discounted_return=0.8 if a == 2 else 0.1,
             std_return=0.2,
-            success_rate=0.75 if a == 2 else 0.1,
-            collision_rate=0.05 if a == 2 else 0.3,
             mean_steps_to_end=25.0,
-            success_ci=(0.7, 0.8) if a == 2 else (0.05, 0.15),
-            collision_ci=(0.02, 0.08) if a == 2 else (0.25, 0.35),
+            return_ci=(0.7, 0.85) if a == 2 else (0.0, 0.2),
             n_rollouts=100,
         )
         for a in (0, 1, 2)
@@ -59,8 +56,9 @@ def test_explain_end_to_end_with_mock() -> None:
     exp = explain(rec, client)
     assert exp.chosen_action == 2
     assert "2" in exp.rationale
-    assert exp.confidence == pytest.approx(0.75)
-    assert any(c["metric"] == "success_rate" for c in exp.claims)
+    # Mock confidence formula: (discounted_return + 1) / 2 → 0.9 for dr=0.8.
+    assert exp.confidence == pytest.approx(0.9)
+    assert any(c["metric"] == "discounted_return" for c in exp.claims)
 
 
 def test_cache_hit_avoids_second_call(tmp_path) -> None:

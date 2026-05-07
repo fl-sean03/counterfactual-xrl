@@ -4,6 +4,13 @@ One DecisionRecord per (episode_seed, step). Both the learned-policy
 (counterfactual rollout stats) and MCTS (tree stats) pipelines produce
 records in this same shape, so the downstream explainer prompt is
 identical across agents.
+
+Reviewer-driven schema change: ``ActionStats`` now exposes the agent's
+actual optimization target, the ``discounted_return``, instead of
+``success_rate`` / ``collision_rate``. MDP agents do not directly
+optimize success rate; surfacing it as evidence invited type-incorrect
+rationales of the form "the agent preferred A because of its higher
+success rate." See report Section "Response to Reviewers" for context.
 """
 
 from __future__ import annotations
@@ -16,16 +23,22 @@ from typing import Any
 
 @dataclass
 class ActionStats:
-    """Per-action statistics at a single decision point."""
+    """Per-action statistics at a single decision point.
+
+    All numbers are aggregated over ``n_rollouts`` Monte Carlo samples
+    (PPO: stochastic policy rollouts; MCTS: simulations through the
+    corresponding root child). The primary metric is
+    ``discounted_return`` (γ=0.99), since that is what an MDP agent
+    actually maximizes. ``mean_steps_to_end`` is reported as an
+    auxiliary diagnostic; it is *not* claimable as the optimization
+    target.
+    """
 
     action: int
-    mean_return: float
+    discounted_return: float
     std_return: float
-    success_rate: float
-    collision_rate: float
     mean_steps_to_end: float
-    success_ci: tuple[float, float]
-    collision_ci: tuple[float, float]
+    return_ci: tuple[float, float]
     n_rollouts: int
 
 
@@ -44,8 +57,9 @@ class DecisionRecord:
         agent_pos / agent_dir / obstacle_positions: human-readable state
         chosen_action: the action the agent actually took.
         per_action_stats: list[ActionStats], one entry per legal action.
-        agent_metadata: agent-native extras (DQN Q-values, MCTS visit
-                        counts at root, budget, etc.).
+        agent_metadata: agent-native extras (PPO action probabilities,
+                        MCTS visit counts at root, MCTS tree
+                        diagnostics, budget, etc.).
     """
 
     source: str
@@ -60,13 +74,20 @@ class DecisionRecord:
     agent_metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
+        import math
+
         d = asdict(self)
         # jsonschema array validation requires Python lists, not tuples.
         d["agent_pos"] = list(d["agent_pos"])
         d["obstacle_positions"] = [list(p) for p in d["obstacle_positions"]]
         for s in d["per_action_stats"]:
-            s["success_ci"] = list(s["success_ci"])
-            s["collision_ci"] = list(s["collision_ci"])
+            s["return_ci"] = list(s["return_ci"])
+            # MCTS does not track per-rollout step counts, so this field
+            # may be NaN. Serialize as null for strict-JSON compatibility
+            # with downstream consumers (LLM, jsonschema validators).
+            v = s.get("mean_steps_to_end")
+            if isinstance(v, float) and math.isnan(v):
+                s["mean_steps_to_end"] = None
         return d
 
 
@@ -103,29 +124,21 @@ DECISION_RECORD_SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "required": [
                     "action",
-                    "mean_return",
+                    "discounted_return",
                     "std_return",
-                    "success_rate",
-                    "collision_rate",
                     "mean_steps_to_end",
-                    "success_ci",
-                    "collision_ci",
+                    "return_ci",
                     "n_rollouts",
                 ],
                 "properties": {
                     "action": {"type": "integer", "minimum": 0, "maximum": 2},
-                    "mean_return": {"type": "number"},
+                    "discounted_return": {"type": "number"},
                     "std_return": {"type": "number"},
-                    "success_rate": {"type": "number", "minimum": 0, "maximum": 1},
-                    "collision_rate": {"type": "number", "minimum": 0, "maximum": 1},
-                    "mean_steps_to_end": {"type": "number", "minimum": 0},
-                    "success_ci": {
-                        "type": "array",
-                        "items": {"type": "number"},
-                        "minItems": 2,
-                        "maxItems": 2,
+                    "mean_steps_to_end": {
+                        "type": ["number", "null"],
+                        "minimum": 0,
                     },
-                    "collision_ci": {
+                    "return_ci": {
                         "type": "array",
                         "items": {"type": "number"},
                         "minItems": 2,
@@ -149,7 +162,12 @@ def save_record(record: DecisionRecord, path: str | Path) -> None:
 def load_record(path: str | Path) -> DecisionRecord:
     with open(path) as f:
         d = json.load(f)
-    stats = [ActionStats(**s) for s in d["per_action_stats"]]
+    stats = []
+    for s in d["per_action_stats"]:
+        # Round-trip null → NaN for the MCTS branch.
+        if s.get("mean_steps_to_end") is None:
+            s["mean_steps_to_end"] = float("nan")
+        stats.append(ActionStats(**s))
     return DecisionRecord(
         source=d["source"],
         agent_id=d["agent_id"],
